@@ -1,6 +1,6 @@
 import boxy, windy, opengl, vmath, pixie
 import sim
-import std/[sequtils, math]
+import std/math
 
 type
   Visualizer* = object
@@ -42,7 +42,7 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     bxy: bxy,
     window: window,
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
-    scale: min(windowWidth.float / MapWidth.float, windowHeight.float / MapHeight.float),
+    scale: 1.0,
     offset: vmath.vec2(0.0, 0.0)
   )
 
@@ -62,8 +62,8 @@ proc getPlayerColorIndex*(playerId: PlayerId): int =
 
 proc getPlanetSize*(growthRate: int32): float =
   # Planet size based on growth rate, with a reasonable range
-  let baseSize = 20.0
-  let sizeMultiplier = 3.0
+  let baseSize = 50.0
+  let sizeMultiplier = 4.0
   return baseSize + (growthRate.float * sizeMultiplier)
 
 proc getFleetSize*(): float =
@@ -164,25 +164,6 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
   if fleet.ships > 0:
     viz.drawNumber(fleet.ships, screenPos)
   
-  # Draw trajectory line to target using a simple rectangle
-  let lineLength = direction.length()
-  
-  if lineLength > 0:
-    # Draw a thin rectangle as the trajectory line
-    viz.bxy.drawRect(
-      rect = rect(
-        screenPos.x,
-        screenPos.y - 1,
-        lineLength * direction.normalize().x,
-        2
-      ),
-      color = rgba(
-        (PlanetColors[colorIndex].r.float * 0.3).uint8,
-        (PlanetColors[colorIndex].g.float * 0.3).uint8,
-        (PlanetColors[colorIndex].b.float * 0.3).uint8,
-        76
-      ).color
-    )
 
 proc drawUI*(viz: Visualizer, state: GameState) =
   # Draw simple UI using rectangles as backgrounds for text areas
@@ -200,7 +181,9 @@ proc drawUI*(viz: Visualizer, state: GameState) =
   for playerId in state.players:
     let planets = state.getPlanetsOwnedBy(playerId)
     let colorIndex = getPlayerColorIndex(playerId)
-    let totalShips = planets.mapIt(state.planets[it].ships).foldl(a + b, 0)
+    var totalShips = 0'i32
+    for planetId in planets:
+      totalShips += state.planets[planetId].ships
     
     # Draw player status rectangle
     let width = 200.0 + totalShips.float * 0.5  # Width based on ships

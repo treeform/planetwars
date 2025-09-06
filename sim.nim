@@ -34,7 +34,7 @@ type
 
 const
   NeutralPlayer* = -1'i32
-  FleetSpeed* = 10'i32  # units per turn (faster movement)
+  FleetSpeed* = 20'i32  # units per turn (faster movement)
   MapWidth* = 1000'i32
   MapHeight* = 1000'i32
   ScaleFactor* = 1000'i32  # For fixed-point arithmetic
@@ -83,7 +83,10 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
   for i in 0'i32..<numPlanets:
     let planet = Planet(
       id: i,
-      pos: Vec2(x: rand(MapWidth.int).int32, y: rand(MapHeight.int).int32),
+      pos: Vec2(
+        x: 100 + rand(MapWidth.int).int32, 
+        y: 100 + rand(MapHeight.int).int32
+      ),
       ships: rand(100).int32,
       growthRate: rand(10).int32,
       owner: NeutralPlayer

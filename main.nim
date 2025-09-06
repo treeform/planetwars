@@ -1,13 +1,22 @@
 import sim, viz, ai
-import std/[times, os, sequtils]
+import std/[times, os]
 
 proc main() =
+
+  # Create AI players
+  var ais: seq[AI] = @[]
+  ais.add(createAI("aggressive", 0))
+  ais.add(createAI("defensive", 1))
+  ais.add(createAI("random", 2))
+  ais.add(createAI("aggressive", 3))
+  ais.add(createAI("aggressive", 4))
+  
   # Game configuration
-  const
-    NumPlayers = 3'i32
-    NumPlanets = 15'i32
+  let
+    NumPlayers = ais.len.int32
+    NumPlanets = 25'i32
     WindowWidth = 1200
-    WindowHeight = 900
+    WindowHeight = 1200
     TurnsPerSecond = 2.0
     TurnDuration = 1000 div TurnsPerSecond.int  # milliseconds
   
@@ -17,12 +26,7 @@ proc main() =
   # Initialize visualization
   var visualizer = initVisualizer(WindowWidth, WindowHeight)
   
-  # Create AI players
-  var ais: seq[AI] = @[]
-  ais.add(createAI("aggressive", 0))
-  ais.add(createAI("defensive", 1))
-  ais.add(createAI("random", 2))
-  
+
   # Game timing
   var lastTurnTime = epochTime() * 1000.0  # Convert to milliseconds
   var gameRunning = true
@@ -63,9 +67,9 @@ proc main() =
           echo "Turn ", gameState.turn, ":"
           for playerId in gameState.players:
             let planets = gameState.getPlanetsOwnedBy(playerId)
-            let totalShips = if planets.len > 0: 
-                            planets.mapIt(gameState.planets[it].ships).foldl(a + b, 0)
-                          else: 0
+            var totalShips = 0'i32
+            for planetId in planets:
+              totalShips += gameState.planets[planetId].ships
             echo "  Player ", playerId, ": ", planets.len, " planets, ", totalShips, " total ships"
           echo "  Active fleets: ", gameState.fleets.len
           echo ""
