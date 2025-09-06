@@ -60,28 +60,41 @@ proc getPlayerColorIndex*(playerId: PlayerId): int =
   else:
     return 0
 
-proc getPlanetSize*(ships: int32): string =
-  if ships < 30:
-    return "small"
-  elif ships < 70:
-    return "medium"
-  else:
-    return "large"
+proc getPlanetSize*(growthRate: int32): float =
+  # Planet size based on growth rate, with a reasonable range
+  let baseSize = 20.0
+  let sizeMultiplier = 3.0
+  return baseSize + (growthRate.float * sizeMultiplier)
 
-proc getFleetSize*(ships: int32): string =
-  if ships < 10:
-    return "small"
-  elif ships < 25:
-    return "medium"
-  else:
-    return "large"
+proc getFleetSize*(): float =
+  # All fleets are the same size now, and smaller
+  return 8.0
 
-proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 16.0) =
+proc getFleetVisualPosition*(state: GameState, fleet: Fleet): sim.Vec2 =
+  # Calculate the visual position of a fleet based on its travel progress
+  let startPos = state.planets[fleet.startPlanet].pos
+  let targetPos = state.planets[fleet.targetPlanet].pos
+  
+  if fleet.travelDuration <= 0:
+    return startPos  # Shouldn't happen, but safety check
+  
+  # Calculate progress ratio (0.0 to 1.0)
+  let progressRatio = fleet.travelProgress.float / fleet.travelDuration.float
+  
+  # Interpolate between start and target positions
+  let deltaX = targetPos.x - startPos.x
+  let deltaY = targetPos.y - startPos.y
+  
+  result.x = startPos.x + (deltaX.float * progressRatio).int32
+  result.y = startPos.y + (deltaY.float * progressRatio).int32
+
+proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 20.0) =
   if number < 0:
     return
     
   let numStr = $number
-  let totalWidth = numStr.len.float * digitSize * 0.6  # Slightly overlapped
+  let spacing = digitSize * 0.8  # More spacing between digits
+  let totalWidth = numStr.len.float * spacing
   var xPos = pos.x - totalWidth / 2  # Center the number
   
   for digit in numStr:
@@ -96,17 +109,12 @@ proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: flo
       )
       # No tint needed - digit images are already white
     )
-    xPos += digitSize * 0.6  # Move to next digit position
+    xPos += spacing  # Move to next digit position with more spacing
 
 proc drawPlanet*(viz: Visualizer, planet: Planet) =
   let screenPos = viz.worldToScreen(planet.pos)
   let colorIndex = getPlayerColorIndex(planet.owner)
-  let sizeStr = getPlanetSize(planet.ships)
-  
-  let imageSize = case sizeStr:
-    of "small": 20.0
-    of "medium": 40.0
-    else: 60.0
+  let imageSize = getPlanetSize(planet.growthRate)  # Size based on growth rate now
   
   # Get player color for tinting
   let tintColor = PlanetColors[colorIndex].color
@@ -123,24 +131,22 @@ proc drawPlanet*(viz: Visualizer, planet: Planet) =
     tint = tintColor
   )
   
-  # Draw ship count in the center of the planet
+  # Draw ship count in the center of the planet (bigger numbers)
   if planet.ships > 0:
-    viz.drawNumber(planet.ships, screenPos, imageSize * 0.25)
+    viz.drawNumber(planet.ships, screenPos, imageSize * 0.4)
 
-proc drawFleet*(viz: Visualizer, fleet: Fleet) =
-  let screenPos = viz.worldToScreen(fleet.pos)
+proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
+  # Calculate current visual position based on travel progress
+  let fleetPos = getFleetVisualPosition(state, fleet)
+  let screenPos = viz.worldToScreen(fleetPos)
   let colorIndex = getPlayerColorIndex(fleet.owner)
-  let sizeStr = getFleetSize(fleet.ships)
+  let imageSize = getFleetSize()  # All fleets same size now
   
   # Calculate direction to target for rotation
-  let targetScreenPos = viz.worldToScreen(fleet.targetPos)
+  let targetPos = state.planets[fleet.targetPlanet].pos
+  let targetScreenPos = viz.worldToScreen(targetPos)
   let direction = targetScreenPos - screenPos
   let angle = arctan2(direction.y, direction.x)
-  
-  let imageSize = case sizeStr:
-    of "small": 10.0
-    of "medium": 15.0
-    else: 20.0
   
   # Get player color for tinting
   let tintColor = PlanetColors[colorIndex].color
@@ -154,9 +160,9 @@ proc drawFleet*(viz: Visualizer, fleet: Fleet) =
     scale = imageSize / 32.0  # Assuming base fleet image is ~32px
   )
   
-  # Draw ship count in the center of the fleet
+  # Draw ship count in the center of the fleet (bigger numbers)
   if fleet.ships > 0:
-    viz.drawNumber(fleet.ships, screenPos, imageSize * 0.4)
+    viz.drawNumber(fleet.ships, screenPos, imageSize * 0.6)
   
   # Draw trajectory line to target using a simple rectangle
   let lineLength = direction.length()
@@ -219,7 +225,7 @@ proc render*(viz: Visualizer, state: GameState) =
   
   # Draw all fleets
   for fleet in state.fleets:
-    viz.drawFleet(fleet)
+    viz.drawFleet(state, fleet)
   
   # Draw UI
   viz.drawUI(state)

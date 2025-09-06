@@ -19,10 +19,10 @@ type
     id*: FleetId
     owner*: PlayerId
     ships*: int32
-    pos*: Vec2
-    target*: PlanetId
-    targetPos*: Vec2
-    speed*: int32
+    startPlanet*: PlanetId
+    targetPlanet*: PlanetId
+    travelDuration*: int32  # Total turns needed to reach target
+    travelProgress*: int32  # Current progress (0 to travelDuration)
     
   GameState* = object
     planets*: seq[Planet]
@@ -107,15 +107,21 @@ proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, 
   if planet.ships < ships:
     return false
     
+  # Calculate travel duration using integer distance and speed
+  let startPos = state.planets[fromPlanet].pos
+  let targetPos = state.planets[toPlanet].pos
+  let travelDistance = distance(startPos, targetPos)
+  let duration = max(1'i32, travelDistance div FleetSpeed)  # At least 1 turn
+  
   # Create fleet
   let fleet = Fleet(
     id: state.nextFleetId,
     owner: planet.owner,
     ships: ships,
-    pos: planet.pos,
-    target: toPlanet,
-    targetPos: state.planets[toPlanet].pos,
-    speed: FleetSpeed
+    startPlanet: fromPlanet,
+    targetPlanet: toPlanet,
+    travelDuration: duration,
+    travelProgress: 0  # Just started
   )
   
   state.fleets.add(fleet)
@@ -128,14 +134,13 @@ proc updateFleets*(state: var GameState) =
   var fleetsToRemove: seq[int] = @[]
   
   for i, fleet in state.fleets:
-    let targetPos = state.planets[fleet.target].pos
-    let direction = normalize(targetPos - fleet.pos)
-    let newPos = fleet.pos + (direction div ScaleFactor) * fleet.speed
+    # Increment travel progress
+    state.fleets[i].travelProgress += 1
     
-    # Check if fleet reached target
-    if distance(newPos, targetPos) <= fleet.speed:
+    # Check if fleet has reached its destination
+    if state.fleets[i].travelProgress >= fleet.travelDuration:
       # Fleet arrives at planet
-      let targetPlanet = addr state.planets[fleet.target]
+      let targetPlanet = addr state.planets[fleet.targetPlanet]
       
       if targetPlanet.owner == fleet.owner:
         # Reinforcement
@@ -158,9 +163,6 @@ proc updateFleets*(state: var GameState) =
             targetPlanet.ships = 0
       
       fleetsToRemove.add(i)
-    else:
-      # Update fleet position
-      state.fleets[i].pos = newPos
 
   # Remove arrived fleets (in reverse order to maintain indices)
   for i in countdown(fleetsToRemove.high, 0):
