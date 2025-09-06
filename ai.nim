@@ -33,7 +33,7 @@ method makeDecision*(ai: RandomAI, state: GameState): seq[AIAction] =
     let planet = state.planets[planetId]
     
     # Only send ships if we have enough
-    if planet.population > 20:
+    if planet.ships > 20:
       # 30% chance to send ships
       if rand(100) < 30:
         # Find a target (any planet we don't own)
@@ -45,7 +45,7 @@ method makeDecision*(ai: RandomAI, state: GameState): seq[AIAction] =
         if targets.len > 0:
           let targetIndex = rand(targets.len - 1)
           let target = targets[targetIndex]
-          let shipsToSend = max(1'i32, planet.population div 2)  # Send half our ships
+          let shipsToSend = max(1'i32, planet.ships div 2)  # Send half our ships
           
           result.add(AIAction(
             fromPlanet: planetId,
@@ -71,7 +71,7 @@ method makeDecision*(ai: AggressiveAI, state: GameState): seq[AIAction] =
     let planet = state.planets[planetId]
     
     # Only attack if we have enough ships
-    if planet.population > 15:
+    if planet.ships > 15:
       # Find nearest enemy or neutral planet
       var bestTarget = -1'i32
       var bestDistance = int32.high
@@ -85,9 +85,9 @@ method makeDecision*(ai: AggressiveAI, state: GameState): seq[AIAction] =
       
       if bestTarget != -1:
         let targetPlanet = state.planets[bestTarget]
-        let shipsNeeded = targetPlanet.population + 5'i32  # Send extra to ensure victory
+        let shipsNeeded = targetPlanet.ships + 5'i32  # Send extra to ensure victory
         
-        if planet.population > shipsNeeded:
+        if planet.ships > shipsNeeded:
           result.add(AIAction(
             fromPlanet: planetId,
             toPlanet: bestTarget,
@@ -116,18 +116,18 @@ method makeDecision*(ai: DefensiveAI, state: GameState): seq[AIAction] =
   
   for planetId in myPlanets:
     let planet = state.planets[planetId]
-    if planet.population > maxPop:
-      maxPop = planet.population
+    if planet.ships > maxPop:
+      maxPop = planet.ships
       strongestPlanet = planetId
-    if planet.population < minPop:
-      minPop = planet.population
+    if planet.ships < minPop:
+      minPop = planet.ships
       weakestPlanet = planetId
   
   # Send reinforcements from strongest to weakest
   if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
     let strongPlanet = state.planets[strongestPlanet]
-    if strongPlanet.population > 30:
-      let shipsToSend = strongPlanet.population div 3
+    if strongPlanet.ships > 30:
+      let shipsToSend = strongPlanet.ships div 3
       result.add(AIAction(
         fromPlanet: strongestPlanet,
         toPlanet: weakestPlanet,

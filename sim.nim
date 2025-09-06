@@ -11,7 +11,7 @@ type
   Planet* = object
     id*: PlanetId
     pos*: Vec2
-    population*: int32
+    ships*: int32
     growthRate*: int32
     owner*: PlayerId  # -1 for neutral, 0+ for players
     
@@ -34,7 +34,7 @@ type
 
 const
   NeutralPlayer* = -1'i32
-  FleetSpeed* = 50'i32  # units per turn
+  FleetSpeed* = 100'i32  # units per turn (faster movement)
   MapWidth* = 1000'i32
   MapHeight* = 1000'i32
   ScaleFactor* = 1000'i32  # For fixed-point arithmetic
@@ -84,7 +84,7 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
     let planet = Planet(
       id: i,
       pos: Vec2(x: rand(MapWidth.int).int32, y: rand(MapHeight.int).int32),
-      population: rand(100).int32,
+      ships: rand(100).int32,
       growthRate: rand(10).int32,
       owner: NeutralPlayer
     )
@@ -94,7 +94,7 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
   for playerId in 0'i32..<numPlayers:
     if playerId < result.planets.len.int32:
       result.planets[playerId].owner = playerId
-      result.planets[playerId].population = max(50'i32, result.planets[playerId].population)
+      result.planets[playerId].ships = max(50'i32, result.planets[playerId].ships)
       result.planets[playerId].growthRate = max(5'i32, result.planets[playerId].growthRate)
 
 proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, ships: int32): bool =
@@ -104,7 +104,7 @@ proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, 
     return false
     
   let planet = state.planets[fromPlanet]
-  if planet.population < ships:
+  if planet.ships < ships:
     return false
     
   # Create fleet
@@ -119,7 +119,7 @@ proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, 
   )
   
   state.fleets.add(fleet)
-  state.planets[fromPlanet].population -= ships
+  state.planets[fromPlanet].ships -= ships
   state.nextFleetId += 1
   
   return true
@@ -139,23 +139,23 @@ proc updateFleets*(state: var GameState) =
       
       if targetPlanet.owner == fleet.owner:
         # Reinforcement
-        targetPlanet.population += fleet.ships
+        targetPlanet.ships += fleet.ships
       elif targetPlanet.owner == NeutralPlayer:
         # Capture neutral planet
-        if fleet.ships > targetPlanet.population:
-          targetPlanet.population = fleet.ships - targetPlanet.population
+        if fleet.ships > targetPlanet.ships:
+          targetPlanet.ships = fleet.ships - targetPlanet.ships
           targetPlanet.owner = fleet.owner
         else:
-          targetPlanet.population -= fleet.ships
+          targetPlanet.ships -= fleet.ships
       else:
         # Attack enemy planet
-        if fleet.ships > targetPlanet.population:
-          targetPlanet.population = fleet.ships - targetPlanet.population
+        if fleet.ships > targetPlanet.ships:
+          targetPlanet.ships = fleet.ships - targetPlanet.ships
           targetPlanet.owner = fleet.owner
         else:
-          targetPlanet.population -= fleet.ships
-          if targetPlanet.population < 0:
-            targetPlanet.population = 0
+          targetPlanet.ships -= fleet.ships
+          if targetPlanet.ships < 0:
+            targetPlanet.ships = 0
       
       fleetsToRemove.add(i)
     else:
@@ -168,8 +168,8 @@ proc updateFleets*(state: var GameState) =
 
 proc updatePlanets*(state: var GameState) =
   for planet in state.planets.mitems:
-    if planet.owner != NeutralPlayer and planet.population > 0:
-      planet.population += planet.growthRate
+    if planet.owner != NeutralPlayer and planet.ships > 0:
+      planet.ships += planet.growthRate
 
 proc updateGame*(state: var GameState) =
   updateFleets(state)

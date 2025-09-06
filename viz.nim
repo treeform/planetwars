@@ -1,6 +1,6 @@
-cimport boxy, windy, opengl, vmath, pixie
+import boxy, windy, opengl, vmath, pixie
 import sim
-import std/sequtils
+import std/[sequtils, math]
 
 type
   Visualizer* = object
@@ -21,45 +21,7 @@ const
     rgba(51, 204, 204, 255),   # Player 5 - cyan
   ]
 
-proc createPlanetImage(color: ColorRGBA, size: int): Image =
-  result = newImage(size, size)
-  result.fill(rgba(0, 0, 0, 0))  # Transparent background
-  
-  let ctx = newContext(result)
-  let center = vec2(size.float / 2, size.float / 2)
-  let radius = size.float / 2 - 2
-  
-  # Draw main planet circle
-  ctx.fillStyle = color
-  ctx.fillCircle(circle(center, radius))
-  
-  # Draw border
-  ctx.strokeStyle = rgba(255, 255, 255, 128)
-  ctx.lineWidth = 1.0
-  ctx.strokeCircle(circle(center, radius))
-
-proc createFleetImage(color: ColorRGBA, size: int): Image =
-  result = newImage(size, size)
-  result.fill(rgba(0, 0, 0, 0))  # Transparent background
-  
-  let ctx = newContext(result)
-  let center = vec2(size.float / 2, size.float / 2)
-  let halfSize = size.float / 2 - 1
-  
-  # Draw diamond shape for fleet
-  ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.moveTo(center.x, center.y - halfSize)  # Top
-  ctx.lineTo(center.x + halfSize, center.y)  # Right
-  ctx.lineTo(center.x, center.y + halfSize)  # Bottom
-  ctx.lineTo(center.x - halfSize, center.y)  # Left
-  ctx.closePath()
-  ctx.fill()
-  
-  # Draw border
-  ctx.strokeStyle = rgba(255, 255, 255, 128)
-  ctx.lineWidth = 1.0
-  ctx.stroke()
+# No longer need to create images - we'll use the provided ones with tinting
 
 proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   let window = newWindow("PlanetWars", ivec2(windowWidth.int32, windowHeight.int32))
@@ -68,19 +30,13 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   
   let bxy = newBoxy()
   
-  # Create planet images for each player color
-  for i, color in PlanetColors:
-    # Large planets (for high population)
-    bxy.addImage("planet_large_" & $i, createPlanetImage(color, 60))
-    # Medium planets
-    bxy.addImage("planet_medium_" & $i, createPlanetImage(color, 40))
-    # Small planets (for low population)
-    bxy.addImage("planet_small_" & $i, createPlanetImage(color, 20))
-    
-    # Fleet images
-    bxy.addImage("fleet_large_" & $i, createFleetImage(color, 20))
-    bxy.addImage("fleet_medium_" & $i, createFleetImage(color, 15))
-    bxy.addImage("fleet_small_" & $i, createFleetImage(color, 10))
+  # Load the base images (only once at startup)
+  bxy.addImage("planet", readImage("data/Planet.png"))
+  bxy.addImage("fleet", readImage("data/Fleet.png"))
+  
+  # Load digit images
+  for digit in 0..9:
+    bxy.addImage("digit_" & $digit, readImage("data/Number" & $digit & ".png"))
   
   result = Visualizer(
     bxy: bxy,
@@ -104,10 +60,10 @@ proc getPlayerColorIndex*(playerId: PlayerId): int =
   else:
     return 0
 
-proc getPlanetSize*(population: int32): string =
-  if population < 30:
+proc getPlanetSize*(ships: int32): string =
+  if ships < 30:
     return "small"
-  elif population < 70:
+  elif ships < 70:
     return "medium"
   else:
     return "large"
@@ -120,54 +76,90 @@ proc getFleetSize*(ships: int32): string =
   else:
     return "large"
 
+proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 16.0) =
+  if number < 0:
+    return
+    
+  let numStr = $number
+  let totalWidth = numStr.len.float * digitSize * 0.6  # Slightly overlapped
+  var xPos = pos.x - totalWidth / 2  # Center the number
+  
+  for digit in numStr:
+    let digitKey = "digit_" & $digit
+    viz.bxy.drawImage(
+      digitKey,
+      rect = rect(
+        xPos,
+        pos.y - digitSize / 2,
+        digitSize,
+        digitSize
+      )
+      # No tint needed - digit images are already white
+    )
+    xPos += digitSize * 0.6  # Move to next digit position
+
 proc drawPlanet*(viz: Visualizer, planet: Planet) =
   let screenPos = viz.worldToScreen(planet.pos)
   let colorIndex = getPlayerColorIndex(planet.owner)
-  let sizeStr = getPlanetSize(planet.population)
+  let sizeStr = getPlanetSize(planet.ships)
   
-  let imageKey = "planet_" & sizeStr & "_" & $colorIndex
   let imageSize = case sizeStr:
     of "small": 20.0
     of "medium": 40.0
     else: 60.0
   
-  # Draw planet image centered
+  # Get player color for tinting
+  let tintColor = PlanetColors[colorIndex].color
+  
+  # Draw planet image centered with tinting and scaling
   viz.bxy.drawImage(
-    imageKey,
+    "planet",
     rect = rect(
       screenPos.x - imageSize / 2,
       screenPos.y - imageSize / 2,
       imageSize,
       imageSize
-    )
+    ),
+    tint = tintColor
   )
+  
+  # Draw ship count in the center of the planet
+  if planet.ships > 0:
+    viz.drawNumber(planet.ships, screenPos, imageSize * 0.25)
 
 proc drawFleet*(viz: Visualizer, fleet: Fleet) =
   let screenPos = viz.worldToScreen(fleet.pos)
   let colorIndex = getPlayerColorIndex(fleet.owner)
   let sizeStr = getFleetSize(fleet.ships)
   
-  let imageKey = "fleet_" & sizeStr & "_" & $colorIndex
+  # Calculate direction to target for rotation
+  let targetScreenPos = viz.worldToScreen(fleet.targetPos)
+  let direction = targetScreenPos - screenPos
+  let angle = arctan2(direction.y, direction.x)
+  
   let imageSize = case sizeStr:
     of "small": 10.0
     of "medium": 15.0
     else: 20.0
   
-  # Draw fleet image centered
+  # Get player color for tinting
+  let tintColor = PlanetColors[colorIndex].color
+  
+  # Draw fleet image centered with tinting, scaling, and rotation
   viz.bxy.drawImage(
-    imageKey,
-    rect = rect(
-      screenPos.x - imageSize / 2,
-      screenPos.y - imageSize / 2,
-      imageSize,
-      imageSize
-    )
+    "fleet",
+    center = vmath.vec2(screenPos.x, screenPos.y),
+    angle = angle,
+    tint = tintColor,
+    scale = imageSize / 32.0  # Assuming base fleet image is ~32px
   )
   
+  # Draw ship count in the center of the fleet
+  if fleet.ships > 0:
+    viz.drawNumber(fleet.ships, screenPos, imageSize * 0.4)
+  
   # Draw trajectory line to target using a simple rectangle
-  let targetScreenPos = viz.worldToScreen(fleet.targetPos)
-  let direction = (targetScreenPos - screenPos).normalize()
-  let lineLength = (targetScreenPos - screenPos).length()
+  let lineLength = direction.length()
   
   if lineLength > 0:
     # Draw a thin rectangle as the trajectory line
@@ -175,7 +167,7 @@ proc drawFleet*(viz: Visualizer, fleet: Fleet) =
       rect = rect(
         screenPos.x,
         screenPos.y - 1,
-        lineLength * direction.x,
+        lineLength * direction.normalize().x,
         2
       ),
       color = rgba(
@@ -202,10 +194,10 @@ proc drawUI*(viz: Visualizer, state: GameState) =
   for playerId in state.players:
     let planets = state.getPlanetsOwnedBy(playerId)
     let colorIndex = getPlayerColorIndex(playerId)
-    let totalPop = planets.mapIt(state.planets[it].population).foldl(a + b, 0)
+    let totalShips = planets.mapIt(state.planets[it].ships).foldl(a + b, 0)
     
     # Draw player status rectangle
-    let width = 200.0 + totalPop.float * 0.5  # Width based on population
+    let width = 200.0 + totalShips.float * 0.5  # Width based on ships
     viz.bxy.drawRect(
       rect = rect(10, yPos, width, 15),
       color = rgba(

@@ -63,10 +63,10 @@ proc main() =
           echo "Turn ", gameState.turn, ":"
           for playerId in gameState.players:
             let planets = gameState.getPlanetsOwnedBy(playerId)
-            let totalPop = if planets.len > 0: 
-                            planets.mapIt(gameState.planets[it].population).foldl(a + b, 0)
+            let totalShips = if planets.len > 0: 
+                            planets.mapIt(gameState.planets[it].ships).foldl(a + b, 0)
                           else: 0
-            echo "  Player ", playerId, ": ", planets.len, " planets, ", totalPop, " total population"
+            echo "  Player ", playerId, ": ", planets.len, " planets, ", totalShips, " total ships"
           echo "  Active fleets: ", gameState.fleets.len
           echo ""
       
