@@ -133,7 +133,7 @@ proc drawPlanet*(viz: Visualizer, planet: Planet) =
   
   # Draw ship count in the center of the planet (bigger numbers)
   if planet.ships > 0:
-    viz.drawNumber(planet.ships, screenPos, imageSize * 0.4)
+    viz.drawNumber(planet.ships, screenPos)
 
 proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
   # Calculate current visual position based on travel progress
@@ -146,7 +146,7 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
   let targetPos = state.planets[fleet.targetPlanet].pos
   let targetScreenPos = viz.worldToScreen(targetPos)
   let direction = targetScreenPos - screenPos
-  let angle = arctan2(direction.y, direction.x)
+  let angle = -arctan2(direction.y, direction.x) - PI/2
   
   # Get player color for tinting
   let tintColor = PlanetColors[colorIndex].color
@@ -162,7 +162,7 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
   
   # Draw ship count in the center of the fleet (bigger numbers)
   if fleet.ships > 0:
-    viz.drawNumber(fleet.ships, screenPos, imageSize * 0.6)
+    viz.drawNumber(fleet.ships, screenPos)
   
   # Draw trajectory line to target using a simple rectangle
   let lineLength = direction.length()

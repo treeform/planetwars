@@ -34,7 +34,7 @@ type
 
 const
   NeutralPlayer* = -1'i32
-  FleetSpeed* = 100'i32  # units per turn (faster movement)
+  FleetSpeed* = 10'i32  # units per turn (faster movement)
   MapWidth* = 1000'i32
   MapHeight* = 1000'i32
   ScaleFactor* = 1000'i32  # For fixed-point arithmetic
