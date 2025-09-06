@@ -38,6 +38,7 @@ const
   MapWidth* = 1000'i32
   MapHeight* = 1000'i32
   ScaleFactor* = 1000'i32  # For fixed-point arithmetic
+  MinPlanetDistance* = 100'i32  # Minimum distance between planets
 
 # Integer square root using Newton's method
 proc isqrt*(n: int32): int32 =
@@ -79,14 +80,34 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
     nextFleetId: 0
   )
   
-  # Generate random planets
+  # Generate random planets with minimum distance constraint
   for i in 0'i32..<numPlanets:
+    var planetPos: Vec2
+    var attempts = 0
+    const maxAttempts = 100
+    
+    # Try to find a valid position that's not too close to existing planets
+    while attempts < maxAttempts:
+      planetPos = Vec2(
+        x: rand(MapWidth.int).int32,
+        y: rand(MapHeight.int).int32
+      )
+      
+      # Check distance to all existing planets
+      var validPosition = true
+      for existingPlanet in result.planets:
+        if distance(planetPos, existingPlanet.pos) < MinPlanetDistance:
+          validPosition = false
+          break
+      
+      if validPosition:
+        break
+      
+      attempts += 1
+    
     let planet = Planet(
       id: i,
-      pos: Vec2(
-        x: 100 + rand(MapWidth.int).int32, 
-        y: 100 + rand(MapHeight.int).int32
-      ),
+      pos: planetPos,
       ships: rand(100).int32,
       growthRate: rand(10).int32,
       owner: NeutralPlayer

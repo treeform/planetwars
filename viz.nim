@@ -43,7 +43,7 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     window: window,
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
     scale: 1.0,
-    offset: vmath.vec2(0.0, 0.0)
+    offset: vmath.vec2(100.0, 100.0)
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -166,37 +166,48 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
   
 
 proc drawUI*(viz: Visualizer, state: GameState) =
-  # Draw simple UI using rectangles as backgrounds for text areas
-  # For now, skip text rendering since boxy doesn't have built-in text support
-  # We'll just show basic info using colored rectangles
+  # Calculate ship counts for all players
+  var playerShips: seq[int32] = @[]
+  var maxShips = 0'i32
   
-  # Draw turn indicator as a small colored rectangle
-  viz.bxy.drawRect(
-    rect = rect(10, 10, 100, 20),
-    color = rgba(50, 50, 50, 200).color
-  )
-  
-  # Draw player status indicators
-  var yPos = 40.0
   for playerId in state.players:
     let planets = state.getPlanetsOwnedBy(playerId)
-    let colorIndex = getPlayerColorIndex(playerId)
     var totalShips = 0'i32
     for planetId in planets:
       totalShips += state.planets[planetId].ships
+    playerShips.add(totalShips)
+    if totalShips > maxShips:
+      maxShips = totalShips
+  
+  # Draw player status bars (scaled to 500px max)
+  var yPos = 5.0
+  let barHeight = 15.0
+  let maxBarWidth = 500.0
+  
+  for i, playerId in state.players:
+    let colorIndex = getPlayerColorIndex(playerId)
+    let ships = playerShips[i]
     
-    # Draw player status rectangle
-    let width = 200.0 + totalShips.float * 0.5  # Width based on ships
-    viz.bxy.drawRect(
-      rect = rect(10, yPos, width, 15),
-      color = rgba(
-        (PlanetColors[colorIndex].r.float * 0.7).uint8,
-        (PlanetColors[colorIndex].g.float * 0.7).uint8,
-        (PlanetColors[colorIndex].b.float * 0.7).uint8,
-        178
-      ).color
-    )
-    yPos += 20.0
+    # Scale bar width based on ship count (max 500px)
+    let width = if maxShips > 0: (ships.float / maxShips.float) * maxBarWidth else: 0.0
+    
+    # Draw player status bar
+    if width > 0:
+      viz.bxy.drawRect(
+        rect = rect(10, yPos, width, barHeight),
+        color = rgba(
+          (PlanetColors[colorIndex].r.float * 0.7).uint8,
+          (PlanetColors[colorIndex].g.float * 0.7).uint8,
+          (PlanetColors[colorIndex].b.float * 0.7).uint8,
+          178
+        ).color
+      )
+    
+    # Draw ship count number on the bar itself
+    if ships > 0:
+      viz.drawNumber(ships, vmath.vec2(25.0, yPos + barHeight / 2))
+    
+    yPos += 20.0  # Normal spacing between bars
 
 proc render*(viz: Visualizer, state: GameState) =
   
