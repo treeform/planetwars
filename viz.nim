@@ -15,6 +15,9 @@ type
     boxSelecting*: bool
     boxStartPos*: vmath.Vec2
     boxEndPos*: vmath.Vec2
+    # Double-click detection
+    lastClickTime*: float
+    lastClickedPlanet*: PlanetId
     
 const
   PlanetColors = [
@@ -70,7 +73,9 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     smoothingEnabled: true,  # Smoothing on by default
     boxSelecting: false,
     boxStartPos: vmath.vec2(0f, 0f),
-    boxEndPos: vmath.vec2(0f, 0f)
+    boxEndPos: vmath.vec2(0f, 0f),
+    lastClickTime: 0f,
+    lastClickedPlanet: -1
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -105,6 +110,13 @@ proc findPlanetsInBox*(state: GameState, topLeft, bottomRight: sim.Vec2): seq[Pl
     if planet.pos.x >= minX and planet.pos.x <= maxX and
        planet.pos.y >= minY and planet.pos.y <= maxY:
       result.add(i.int32)
+
+proc selectAllPlayerPlanets*(viz: var Visualizer, state: GameState, playerId: PlayerId) =
+  # Select all planets belonging to the specified player
+  viz.selectedPlanets = @[]
+  for i, planet in state.planets:
+    if planet.owner == playerId:
+      viz.selectedPlanets.add(i.int32)
 
 proc getPlayerColorIndex*(playerId: PlayerId): int =
   if playerId == NeutralPlayer:
@@ -325,36 +337,52 @@ proc shouldClose*(viz: Visualizer): bool =
 proc pollEvents*(viz: Visualizer) =
   pollEvents()
   
-proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
+proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2, currentTime: float) =
   let worldPos = viz.screenToWorld(mousePos)
   let clickedPlanet = findPlanetAt(state, worldPos)
   
   if clickedPlanet != -1:
-    # Clicked on a planet
-    if viz.selectedPlanets.len == 0:
-      # No planets selected, select this one if it belongs to a player
-      if state.planets[clickedPlanet].owner != NeutralPlayer:
-        viz.selectedPlanets.add(clickedPlanet)
-    elif clickedPlanet in viz.selectedPlanets:
-      # Clicked on a selected planet, deselect it
-      let index = viz.selectedPlanets.find(clickedPlanet)
-      if index != -1:
-        viz.selectedPlanets.delete(index)
+    # Check for double-click (within 0.5 seconds of last click on same planet)
+    let isDoubleClick = (currentTime - viz.lastClickTime < 0.5f) and (clickedPlanet == viz.lastClickedPlanet)
+    
+    if isDoubleClick:
+      # Double-click: select all planets of this player
+      let playerOwner = state.planets[clickedPlanet].owner
+      if playerOwner != NeutralPlayer:
+        viz.selectAllPlayerPlanets(state, playerOwner)
+        echo "Selected all planets for player ", playerOwner
     else:
-      # Clicked on a different planet, try to send fleets from all selected
-      for fromPlanet in viz.selectedPlanets:
-        if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
-          let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
-          if state.sendFleet(fromPlanet, clickedPlanet, shipsToSend):
-            echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", clickedPlanet
-      
-      # Clear selection after sending
-      viz.selectedPlanets = @[]
+      # Single click on a planet
+      if viz.selectedPlanets.len == 0:
+        # No planets selected, select this one if it belongs to a player
+        if state.planets[clickedPlanet].owner != NeutralPlayer:
+          viz.selectedPlanets.add(clickedPlanet)
+      elif clickedPlanet in viz.selectedPlanets:
+        # Clicked on a selected planet, deselect it
+        let index = viz.selectedPlanets.find(clickedPlanet)
+        if index != -1:
+          viz.selectedPlanets.delete(index)
+      else:
+        # Clicked on a different planet, try to send fleets from all selected
+        for fromPlanet in viz.selectedPlanets:
+          if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
+            let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
+            if state.sendFleet(fromPlanet, clickedPlanet, shipsToSend):
+              echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", clickedPlanet
+        
+        # Clear selection after sending
+        viz.selectedPlanets = @[]
+    
+    # Update click tracking for double-click detection
+    viz.lastClickTime = currentTime
+    viz.lastClickedPlanet = clickedPlanet
   else:
     # Clicked on empty space, start box selection
     viz.boxSelecting = true
     viz.boxStartPos = mousePos
     viz.boxEndPos = mousePos
+    viz.lastClickTime = currentTime
+    viz.lastClickedPlanet = -1
 
 proc handleMouseDrag*(viz: var Visualizer, mousePos: vmath.Vec2) =
   if viz.boxSelecting:

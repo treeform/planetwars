@@ -43,12 +43,14 @@ proc main() =
   echo "  [ to slow down, ] to speed up"
   echo "  S to toggle fleet smoothing"
   echo "  Click planet to select, drag to box select multiple"
+  echo "  Double-click planet to select all planets of that player"
   echo "  Click target to send fleets from all selected planets"
   echo ""
   
   # Main game loop
   while gameRunning and not visualizer.shouldClose():
     let currentTime = epochTime()
+    
     let deltaTime = currentTime - lastFrameTime
     lastFrameTime = currentTime
     
@@ -59,7 +61,7 @@ proc main() =
     let mousePos = vmath.vec2(visualizer.window.mousePos.x.float, visualizer.window.mousePos.y.float)
     
     if visualizer.window.buttonPressed[MouseLeft]:
-      visualizer.handleMouseDown(gameState, mousePos)
+      visualizer.handleMouseDown(gameState, mousePos, currentTime)
     
     if visualizer.window.buttonDown[MouseLeft]:
       visualizer.handleMouseDrag(mousePos)
