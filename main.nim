@@ -52,10 +52,10 @@ proc main() =
     
     # Check for speed control keys
     if visualizer.window.buttonPressed[KeyLeftBracket]:
-      simSpeed = max(0.1f, simSpeed * 0.5f)  # Slow down
+      simSpeed = max(0.1f, simSpeed * 0.8f)  # Slow down
       echo "Speed: ", simSpeed, "x"
     if visualizer.window.buttonPressed[KeyRightBracket]:
-      simSpeed = min(1000f, simSpeed * 2f)  # Speed up
+      simSpeed = min(1000f, simSpeed * 1.2f)  # Speed up
       echo "Speed: ", simSpeed, "x"
     
     # Accumulate simulation steps
