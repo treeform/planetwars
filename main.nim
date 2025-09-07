@@ -4,13 +4,13 @@ import windy
 
 proc main() =
 
-  # Create AI players
-  var ais: seq[AI] = @[]
-  ais.add(createAI("aggressive", 0))
-  ais.add(createAI("passive", 1))
-  ais.add(createAI("random", 2))
-  ais.add(createAI("aggressive", 3))
-  ais.add(createAI("aggressive", 4))
+  # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend)
+  var ais: seq[ConfigurableAI] = @[]
+  ais.add(newAI(0, 0.6f, 0.1f, 0.2f, 0.1f))  # Aggressive - mostly attacks closest
+  ais.add(newAI(1, 0f, 0f, 0f, 0f))           # Passive - does nothing
+  ais.add(newAI(2, 0.25f, 0.25f, 0.25f, 0.25f))  # Balanced - equal strategies
+  ais.add(newAI(3, 0.1f, 0.4f, 0.1f, 0.4f))  # Defensive - equalizes and defends
+  ais.add(newAI(4, 0.2f, 0.2f, 0.5f, 0.1f))  # Opportunist - hunts weak targets
   
   # Game configuration
   let
