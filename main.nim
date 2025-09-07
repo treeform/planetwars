@@ -32,13 +32,13 @@ proc main() =
   var simSpeed = 1f  # Simulation speed multiplier
   var stepFraction = 0f  # Accumulated fractional steps
   
-  
   echo "Starting PlanetWars simulation..."
   echo "Players: ", NumPlayers
   echo "Planets: ", NumPlanets
   echo "Map size: ", MapWidth, "x", MapHeight
   echo "Controls:"
   echo "  [ to slow down, ] to speed up"
+  echo "  S to toggle fleet smoothing"
   echo "  Click planet to select, click another to send fleet"
   echo ""
   
@@ -63,6 +63,11 @@ proc main() =
     if visualizer.window.buttonPressed[KeyRightBracket]:
       simSpeed = min(1000f, simSpeed * 1.2f)  # Speed up
       echo "Speed: ", simSpeed, "x"
+    
+    # Check for smoothing toggle
+    if visualizer.window.buttonPressed[KeyS]:
+      visualizer.smoothingEnabled = not visualizer.smoothingEnabled
+      echo "Smoothing: ", if visualizer.smoothingEnabled: "ON" else: "OFF"
     
     # Accumulate simulation steps
     stepFraction += simSpeed * deltaTime.float32
@@ -99,8 +104,8 @@ proc main() =
           echo "  Active fleets: ", gameState.fleets.len
           echo ""
     
-    # Render the game
-    visualizer.render(gameState)
+    # Render the game with smoothing
+    visualizer.render(gameState, stepFraction)
   
   # Show final results
   if winner != NeutralPlayer:
@@ -117,7 +122,7 @@ proc main() =
     echo "Close window to exit..."
     while not visualizer.shouldClose():
       visualizer.pollEvents()
-      visualizer.render(gameState)
+      visualizer.render(gameState, 0f)
   
   # Cleanup
   visualizer.cleanup()

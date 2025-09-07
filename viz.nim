@@ -10,6 +10,7 @@ type
     scale*: float
     offset*: vmath.Vec2
     selectedPlanet*: PlanetId  # -1 if no selection
+    smoothingEnabled*: bool    # Fleet position smoothing toggle
     
 const
   PlanetColors = [
@@ -36,6 +37,7 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   let bxy = newBoxy()
   
   # Load the base images (only once at startup)
+  bxy.addImage("background", readImage("data/Background.png"))
   bxy.addImage("planet", readImage("data/Planet.png"))
   bxy.addImage("fleet", readImage("data/Fleet.png"))
   bxy.addImage("selection", readImage("data/Selection.png"))
@@ -50,7 +52,8 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
     scale: 1f,
     offset: vmath.vec2(100f, 100f),
-    selectedPlanet: -1  # No selection initially
+    selectedPlanet: -1,  # No selection initially
+    smoothingEnabled: true  # Smoothing on by default
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -91,7 +94,7 @@ proc getFleetSize*(): float =
   # All fleets are the same size now, and smaller
   return 8f
 
-proc getFleetVisualPosition*(state: GameState, fleet: Fleet): sim.Vec2 =
+proc getFleetVisualPosition*(state: GameState, fleet: Fleet, stepFraction: float = 0f, smoothing: bool = false): sim.Vec2 =
   # Calculate the visual position of a fleet based on its travel progress
   let startPos = state.planets[fleet.startPlanet].pos
   let targetPos = state.planets[fleet.targetPlanet].pos
@@ -100,7 +103,14 @@ proc getFleetVisualPosition*(state: GameState, fleet: Fleet): sim.Vec2 =
     return startPos  # Shouldn't happen, but safety check
   
   # Calculate progress ratio (0.0 to 1.0)
-  let progressRatio = fleet.travelProgress.float / fleet.travelDuration.float
+  var progressRatio = fleet.travelProgress.float / fleet.travelDuration.float
+  
+  # Add smoothing if enabled - interpolate with the current step fraction
+  if smoothing and fleet.travelProgress < fleet.travelDuration:
+    progressRatio += stepFraction / fleet.travelDuration.float
+  
+  # Clamp to valid range
+  progressRatio = max(0f, min(1f, progressRatio))
   
   # Interpolate between start and target positions
   let deltaX = targetPos.x - startPos.x
@@ -169,9 +179,9 @@ proc drawPlanet*(viz: Visualizer, planet: Planet) =
   if planet.ships > 0:
     viz.drawNumber(planet.ships, screenPos)
 
-proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
+proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet, stepFraction: float = 0f) =
   # Calculate current visual position based on travel progress
-  let fleetPos = getFleetVisualPosition(state, fleet)
+  let fleetPos = getFleetVisualPosition(state, fleet, stepFraction, viz.smoothingEnabled)
   let screenPos = viz.worldToScreen(fleetPos)
   let colorIndex = getPlayerColorIndex(fleet.owner)
   let imageSize = getFleetSize()  # All fleets same size now
@@ -243,17 +253,23 @@ proc drawUI*(viz: Visualizer, state: GameState) =
     
     yPos += 20f  # Normal spacing between bars
 
-proc render*(viz: Visualizer, state: GameState) =
+proc render*(viz: Visualizer, state: GameState, stepFraction: float = 0f) =
   
   viz.bxy.beginFrame(ivec2(viz.windowSize.x.int32, viz.windowSize.y.int32))
+  
+  # Draw background
+  viz.bxy.drawImage(
+    "background",
+    rect = rect(0f, 0f, viz.windowSize.x, viz.windowSize.y)
+  )
   
   # Draw all planets
   for planet in state.planets:
     viz.drawPlanet(planet)
   
-  # Draw all fleets
+  # Draw all fleets with smoothing
   for fleet in state.fleets:
-    viz.drawFleet(state, fleet)
+    viz.drawFleet(state, fleet, stepFraction)
   
   # Draw UI
   viz.drawUI(state)
