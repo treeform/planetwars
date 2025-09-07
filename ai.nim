@@ -84,7 +84,35 @@ method makeDecision*(ai: AggressiveAI, state: GameState): seq[AIAction] =
   if myPlanets.len == 0:
     return
   
-  # Find the best attack opportunity among all planets (one action per turn)
+  # Every 10th turn or so, reinforce weakest planet from strongest
+  if state.turn mod 10 == 0 and myPlanets.len > 1:
+    # Find strongest and weakest planets
+    var strongestPlanet = -1'i32
+    var weakestPlanet = -1'i32
+    var maxShips = 0'i32
+    var minShips = int32.high
+    
+    for planetId in myPlanets:
+      let planet = state.planets[planetId]
+      if planet.ships > maxShips:
+        maxShips = planet.ships
+        strongestPlanet = planetId
+      if planet.ships < minShips:
+        minShips = planet.ships
+        weakestPlanet = planetId
+    
+    # Send reinforcements if conditions are met
+    if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
+      let strongPlanet = state.planets[strongestPlanet]
+      if strongPlanet.ships > 20:  # Need enough ships to reinforce
+        result.add(AIAction(
+          fromPlanet: strongestPlanet,
+          toPlanet: weakestPlanet,
+          ships: strongPlanet.ships div 2
+        ))
+        return  # Done with reinforcement action
+  
+  # Otherwise, find the best attack opportunity among all planets
   var bestAction: AIAction
   var bestFound = false
   var bestScore = int32.high  # Lower distance = better score
