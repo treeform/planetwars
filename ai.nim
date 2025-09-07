@@ -14,6 +14,15 @@ method makeDecision*(ai: AI, state: GameState): seq[AIAction] {.base.} =
   # Base method - should be overridden by specific AI implementations
   @[]
 
+type
+  PassiveAI* = ref object of AI
+
+proc newPassiveAI*(playerId: PlayerId): PassiveAI =
+  PassiveAI(playerId: playerId)
+
+method makeDecision*(ai: PassiveAI, state: GameState): seq[AIAction] =
+  @[]
+
 # Simple Random AI
 type
   RandomAI* = ref object of AI
@@ -142,6 +151,8 @@ proc executeAIActions*(state: var GameState, actions: seq[AIAction]) =
 # Factory function to create different AI types
 proc createAI*(aiType: string, playerId: PlayerId): AI =
   case aiType:
+    of "passive":
+      return newPassiveAI(playerId)
     of "random":
       return newRandomAI(playerId)
     of "aggressive":

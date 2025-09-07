@@ -7,7 +7,7 @@ proc main() =
   # Create AI players
   var ais: seq[AI] = @[]
   ais.add(createAI("aggressive", 0))
-  ais.add(createAI("defensive", 1))
+  ais.add(createAI("passive", 1))
   ais.add(createAI("random", 2))
   ais.add(createAI("aggressive", 3))
   ais.add(createAI("aggressive", 4))
