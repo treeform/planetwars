@@ -24,7 +24,11 @@ const
 # No longer need to create images - we'll use the provided ones with tinting
 
 proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
-  let window = newWindow("PlanetWars", ivec2(windowWidth.int32, windowHeight.int32))
+  let window = newWindow(
+    "PlanetWars", 
+    ivec2(windowWidth.int32, windowHeight.int32),
+    style = Decorated
+  )
   window.makeContextCurrent()
   loadExtensions()
   
@@ -42,8 +46,8 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     bxy: bxy,
     window: window,
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
-    scale: 1.0,
-    offset: vmath.vec2(100.0, 100.0)
+    scale: 1f,
+    offset: vmath.vec2(100f, 100f)
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -62,13 +66,13 @@ proc getPlayerColorIndex*(playerId: PlayerId): int =
 
 proc getPlanetSize*(growthRate: int32): float =
   # Planet size based on growth rate, with a reasonable range
-  let baseSize = 50.0
-  let sizeMultiplier = 4.0
+  let baseSize = 50f
+  let sizeMultiplier = 4f
   return baseSize + (growthRate.float * sizeMultiplier)
 
 proc getFleetSize*(): float =
   # All fleets are the same size now, and smaller
-  return 8.0
+  return 8f
 
 proc getFleetVisualPosition*(state: GameState, fleet: Fleet): sim.Vec2 =
   # Calculate the visual position of a fleet based on its travel progress
@@ -88,7 +92,7 @@ proc getFleetVisualPosition*(state: GameState, fleet: Fleet): sim.Vec2 =
   result.x = startPos.x + (deltaX.float * progressRatio).int32
   result.y = startPos.y + (deltaY.float * progressRatio).int32
 
-proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 20.0) =
+proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 20f) =
   if number < 0:
     return
     
@@ -157,7 +161,7 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet) =
     center = vmath.vec2(screenPos.x, screenPos.y),
     angle = angle,
     tint = tintColor,
-    scale = imageSize / 32.0  # Assuming base fleet image is ~32px
+    scale = imageSize / 32f  # Assuming base fleet image is ~32px
   )
   
   # Draw ship count in the center of the fleet (bigger numbers)
@@ -180,16 +184,16 @@ proc drawUI*(viz: Visualizer, state: GameState) =
       maxShips = totalShips
   
   # Draw player status bars (scaled to 500px max)
-  var yPos = 5.0
-  let barHeight = 15.0
-  let maxBarWidth = 500.0
+  var yPos = 5f
+  let barHeight = 15f
+  let maxBarWidth = 500f
   
   for i, playerId in state.players:
     let colorIndex = getPlayerColorIndex(playerId)
     let ships = playerShips[i]
     
     # Scale bar width based on ship count (max 500px)
-    let width = if maxShips > 0: (ships.float / maxShips.float) * maxBarWidth else: 0.0
+    let width = if maxShips > 0: (ships.float / maxShips.float) * maxBarWidth else: 0f
     
     # Draw player status bar
     if width > 0:
@@ -205,9 +209,9 @@ proc drawUI*(viz: Visualizer, state: GameState) =
     
     # Draw ship count number on the bar itself
     if ships > 0:
-      viz.drawNumber(ships, vmath.vec2(25.0, yPos + barHeight / 2))
+      viz.drawNumber(ships, vmath.vec2(25f, yPos + barHeight / 2))
     
-    yPos += 20.0  # Normal spacing between bars
+    yPos += 20f  # Normal spacing between bars
 
 proc render*(viz: Visualizer, state: GameState) =
   

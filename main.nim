@@ -1,5 +1,5 @@
 import sim, viz, ai
-import std/[times, strformat]
+import std/times
 import windy
 
 proc main() =
@@ -30,8 +30,8 @@ proc main() =
   var lastFrameTime = epochTime()
   var gameRunning = true
   var winner = NeutralPlayer
-  var simSpeed = 1.0'f32  # Simulation speed multiplier
-  var stepFraction = 0.0'f32  # Accumulated fractional steps
+  var simSpeed = 10f  # Simulation speed multiplier
+  var stepFraction = 0f  # Accumulated fractional steps
   
   
   echo "Starting PlanetWars simulation..."
@@ -52,18 +52,18 @@ proc main() =
     
     # Check for speed control keys
     if visualizer.window.buttonPressed[KeyLeftBracket]:
-      simSpeed = max(0.1'f32, simSpeed * 0.5f)  # Slow down
+      simSpeed = max(0.1f, simSpeed * 0.5f)  # Slow down
       echo "Speed: ", simSpeed, "x"
     if visualizer.window.buttonPressed[KeyRightBracket]:
-      simSpeed = min(10.0'f32, simSpeed * 2f)  # Speed up
+      simSpeed = min(1000f, simSpeed * 2f)  # Speed up
       echo "Speed: ", simSpeed, "x"
     
     # Accumulate simulation steps
     stepFraction += simSpeed * deltaTime.float32
     
     # Process complete simulation steps
-    while stepFraction >= 1.0:
-      stepFraction -= 1.0
+    while stepFraction >= 1f:
+      stepFraction -= 1f
       
       # Check for winner
       winner = gameState.getGameWinner()
