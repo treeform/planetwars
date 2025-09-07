@@ -16,8 +16,9 @@ type
     defend*: float32             # How often to reinforce planets near strong enemies
     neutral*: float32            # How often to prioritize capturing neutral planets
     strongestFirst*: float32     # How often strongest planet attacks closest enemy
+    attackLeader*: float32       # How often to attack planets of the strongest player
 
-proc newAI*(playerId: PlayerId, attackClosest, equalize, opportunity, defend, neutral, strongestFirst: float32): ConfigurableAI =
+proc newAI*(playerId: PlayerId, attackClosest, equalize, opportunity, defend, neutral, strongestFirst, attackLeader: float32): ConfigurableAI =
   ConfigurableAI(
     playerId: playerId,
     attackClosest: attackClosest,
@@ -25,7 +26,8 @@ proc newAI*(playerId: PlayerId, attackClosest, equalize, opportunity, defend, ne
     opportunity: opportunity,
     defend: defend,
     neutral: neutral,
-    strongestFirst: strongestFirst
+    strongestFirst: strongestFirst,
+    attackLeader: attackLeader
   )
 
 proc strategyAttackClosest(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
@@ -196,6 +198,52 @@ proc strategyStrongestFirst(ai: ConfigurableAI, state: GameState, myPlanets: seq
   else:
     return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
 
+proc strategyAttackLeader(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  # Find the player with the most planets (strongest player)
+  var playerPlanetCounts: seq[int32] = @[]
+  for i in 0..<state.players.len:
+    playerPlanetCounts.add(0)
+  
+  for planet in state.planets:
+    if planet.owner != NeutralPlayer and planet.owner >= 0 and planet.owner < playerPlanetCounts.len.int32:
+      playerPlanetCounts[planet.owner] += 1
+  
+  # Find strongest player (excluding self)
+  var strongestPlayer = -1'i32
+  var maxPlanets = 0'i32
+  for playerId in 0..<playerPlanetCounts.len:
+    if playerId.int32 != ai.playerId and playerPlanetCounts[playerId] > maxPlanets:
+      maxPlanets = playerPlanetCounts[playerId]
+      strongestPlayer = playerId.int32
+  
+  if strongestPlayer == -1:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+  
+  # Attack closest planet belonging to the strongest player
+  var bestAction: AIAction
+  var bestFound = false
+  var bestScore = int32.high
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > 10:
+      for i, targetPlanet in state.planets:
+        if targetPlanet.owner == strongestPlayer:
+          let dist = distance(planet.pos, targetPlanet.pos)
+          if dist < bestScore:
+            bestScore = dist
+            bestAction = AIAction(
+              fromPlanet: planetId,
+              toPlanet: i.int32,
+              ships: planet.ships div 2
+            )
+            bestFound = true
+  
+  if bestFound:
+    return bestAction
+  else:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+
 proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
   result = @[]
   
@@ -204,7 +252,7 @@ proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
     return
   
   # Calculate total strategy weight
-  let totalWeight = ai.attackClosest + ai.equalize + ai.opportunity + ai.defend + ai.neutral + ai.strongestFirst
+  let totalWeight = ai.attackClosest + ai.equalize + ai.opportunity + ai.defend + ai.neutral + ai.strongestFirst + ai.attackLeader
   if totalWeight <= 0:
     return  # Completely passive AI
   
@@ -251,6 +299,13 @@ proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
   cumulative += ai.strongestFirst
   if choice <= cumulative:
     let action = ai.strategyStrongestFirst(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
+      return
+  
+  cumulative += ai.attackLeader
+  if choice <= cumulative:
+    let action = ai.strategyAttackLeader(state, myPlanets)
     if action.fromPlanet != -1:
       result.add(action)
       return

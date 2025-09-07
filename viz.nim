@@ -9,8 +9,12 @@ type
     windowSize*: vmath.Vec2
     scale*: float
     offset*: vmath.Vec2
-    selectedPlanet*: PlanetId  # -1 if no selection
-    smoothingEnabled*: bool    # Fleet position smoothing toggle
+    selectedPlanets*: seq[PlanetId]  # Array of selected planets
+    smoothingEnabled*: bool          # Fleet position smoothing toggle
+    # Box selection state
+    boxSelecting*: bool
+    boxStartPos*: vmath.Vec2
+    boxEndPos*: vmath.Vec2
     
 const
   PlanetColors = [
@@ -62,8 +66,11 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
     scale: 1f,
     offset: vmath.vec2(100f, 100f),
-    selectedPlanet: -1,  # No selection initially
-    smoothingEnabled: true  # Smoothing on by default
+    selectedPlanets: @[],  # No selection initially
+    smoothingEnabled: true,  # Smoothing on by default
+    boxSelecting: false,
+    boxStartPos: vmath.vec2(0f, 0f),
+    boxEndPos: vmath.vec2(0f, 0f)
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -85,6 +92,19 @@ proc findPlanetAt*(state: GameState, worldPos: sim.Vec2): PlanetId =
     if dist <= 50:  # 50px selection radius
       return i.int32
   return -1  # No planet found
+
+proc findPlanetsInBox*(state: GameState, topLeft, bottomRight: sim.Vec2): seq[PlanetId] =
+  # Find all planets within the selection box
+  result = @[]
+  let minX = min(topLeft.x, bottomRight.x)
+  let maxX = max(topLeft.x, bottomRight.x)
+  let minY = min(topLeft.y, bottomRight.y)
+  let maxY = max(topLeft.y, bottomRight.y)
+  
+  for i, planet in state.planets:
+    if planet.pos.x >= minX and planet.pos.x <= maxX and
+       planet.pos.y >= minY and planet.pos.y <= maxY:
+      result.add(i.int32)
 
 proc getPlayerColorIndex*(playerId: PlayerId): int =
   if playerId == NeutralPlayer:
@@ -173,7 +193,7 @@ proc drawPlanet*(viz: Visualizer, planet: Planet) =
   )
   
   # Draw selection highlight if this planet is selected
-  if viz.selectedPlanet == planet.id:
+  if planet.id in viz.selectedPlanets:
     let selectionSize = imageSize + 10f  # Slightly larger than planet
     viz.bxy.drawImage(
       "selection",
@@ -284,6 +304,18 @@ proc render*(viz: Visualizer, state: GameState, stepFraction: float = 0f) =
   # Draw UI
   viz.drawUI(state)
   
+  # Draw box selection if active
+  if viz.boxSelecting:
+    let minX = min(viz.boxStartPos.x, viz.boxEndPos.x)
+    let minY = min(viz.boxStartPos.y, viz.boxEndPos.y)
+    let maxX = max(viz.boxStartPos.x, viz.boxEndPos.x)
+    let maxY = max(viz.boxStartPos.y, viz.boxEndPos.y)
+    
+    viz.bxy.drawRect(
+      rect = rect(minX, minY, maxX - minX, maxY - minY),
+      color = rgba(255, 255, 255, 64).color  # Translucent white
+    )
+  
   viz.bxy.endFrame()
   viz.window.swapBuffers()
 
@@ -293,37 +325,55 @@ proc shouldClose*(viz: Visualizer): bool =
 proc pollEvents*(viz: Visualizer) =
   pollEvents()
   
-proc handleMouseClick*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
+proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
   let worldPos = viz.screenToWorld(mousePos)
   let clickedPlanet = findPlanetAt(state, worldPos)
   
   if clickedPlanet != -1:
     # Clicked on a planet
-    if viz.selectedPlanet == -1:
-      # No planet selected, select this one if it belongs to a player
+    if viz.selectedPlanets.len == 0:
+      # No planets selected, select this one if it belongs to a player
       if state.planets[clickedPlanet].owner != NeutralPlayer:
-        viz.selectedPlanet = clickedPlanet
-    elif viz.selectedPlanet == clickedPlanet:
-      # Clicked on the same selected planet, deselect it
-      viz.selectedPlanet = -1
+        viz.selectedPlanets.add(clickedPlanet)
+    elif clickedPlanet in viz.selectedPlanets:
+      # Clicked on a selected planet, deselect it
+      let index = viz.selectedPlanets.find(clickedPlanet)
+      if index != -1:
+        viz.selectedPlanets.delete(index)
     else:
-      # Clicked on a different planet, try to send fleet
-      let fromPlanet = viz.selectedPlanet
-      let toPlanet = clickedPlanet
+      # Clicked on a different planet, try to send fleets from all selected
+      for fromPlanet in viz.selectedPlanets:
+        if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
+          let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
+          if state.sendFleet(fromPlanet, clickedPlanet, shipsToSend):
+            echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", clickedPlanet
       
-      # Check if we own the source planet and it has ships
-      if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
-        let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
-        if state.sendFleet(fromPlanet, toPlanet, shipsToSend):
-          echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", toPlanet
-        else:
-          echo "Failed to send fleet"
-      
-      # Deselect after attempting to send
-      viz.selectedPlanet = -1
+      # Clear selection after sending
+      viz.selectedPlanets = @[]
   else:
-    # Clicked on empty space, deselect
-    viz.selectedPlanet = -1
+    # Clicked on empty space, start box selection
+    viz.boxSelecting = true
+    viz.boxStartPos = mousePos
+    viz.boxEndPos = mousePos
+
+proc handleMouseDrag*(viz: var Visualizer, mousePos: vmath.Vec2) =
+  if viz.boxSelecting:
+    viz.boxEndPos = mousePos
+
+proc handleMouseUp*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
+  if viz.boxSelecting:
+    # Finish box selection
+    viz.boxSelecting = false
+    
+    let worldStart = viz.screenToWorld(viz.boxStartPos)
+    let worldEnd = viz.screenToWorld(viz.boxEndPos)
+    let planetsInBox = findPlanetsInBox(state, worldStart, worldEnd)
+    
+    # Select only player-owned planets from the box
+    viz.selectedPlanets = @[]
+    for planetId in planetsInBox:
+      if state.planets[planetId].owner != NeutralPlayer:
+        viz.selectedPlanets.add(planetId)
 
 proc cleanup*(viz: Visualizer) =
   viz.window.close()

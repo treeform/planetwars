@@ -4,15 +4,16 @@ import windy
 
 proc main() =
 
-  # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend, neutral, strongestFirst)
+  # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend, neutral, strongestFirst, attackLeader)
   var ais: seq[ConfigurableAI] = @[]
-  ais.add(newAI(0, 0.4f, 0.1f, 0.2f, 0.1f, 0.1f, 0.1f))  # Aggressive - mostly attacks closest
-  ais.add(newAI(1, 0f, 0f, 0f, 0f, 0f, 0f))               # Passive - does nothing
-  ais.add(newAI(2, 0.15f, 0.15f, 0.15f, 0.15f, 0.2f, 0.2f))  # Balanced - equal strategies
-  ais.add(newAI(3, 0.1f, 0.4f, 0.1f, 0.3f, 0.05f, 0.05f)) # Defensive - equalizes and defends
-  ais.add(newAI(4, 0.1f, 0.1f, 0.2f, 0.1f, 0.4f, 0.1f))  # Expansionist - prioritizes neutrals
-  ais.add(newAI(5, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.5f))  # Power Player - strongest attacks
-  ais.add(newAI(6, 0.3f, 0.05f, 0.3f, 0.05f, 0.15f, 0.15f))  # Hunter - attacks and opportunities
+  ais.add(newAI(0, 0f, 0f, 0f, 0f, 0f, 0f, 0f))                 # Passive - does nothing
+  
+  ais.add(newAI(1, 0.3f, 0.1f, 0.2f, 0.1f, 0.1f, 0.1f, 0.1f))  # Aggressive - mostly attacks closest
+  ais.add(newAI(2, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.1f, 0.15f))  # Balanced - equal strategies
+  ais.add(newAI(3, 0.1f, 0.35f, 0.1f, 0.25f, 0.05f, 0.05f, 0.1f)) # Defensive - equalizes and defends
+  ais.add(newAI(4, 0.1f, 0.1f, 0.15f, 0.1f, 0.4f, 0.1f, 0.05f))  # Expansionist - prioritizes neutrals
+  ais.add(newAI(5, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.4f, 0.1f))   # Power Player - strongest attacks
+  ais.add(newAI(6, 0.2f, 0.05f, 0.2f, 0.05f, 0.1f, 0.1f, 0.3f))  # Leader Hunter - attacks strongest player
   
   # Game configuration
   let
@@ -41,7 +42,8 @@ proc main() =
   echo "Controls:"
   echo "  [ to slow down, ] to speed up"
   echo "  S to toggle fleet smoothing"
-  echo "  Click planet to select, click another to send fleet"
+  echo "  Click planet to select, drag to box select multiple"
+  echo "  Click target to send fleets from all selected planets"
   echo ""
   
   # Main game loop
@@ -53,10 +55,17 @@ proc main() =
     # Handle window events and key input
     visualizer.pollEvents()
     
-    # Handle mouse clicks
+    # Handle mouse input
+    let mousePos = vmath.vec2(visualizer.window.mousePos.x.float, visualizer.window.mousePos.y.float)
+    
     if visualizer.window.buttonPressed[MouseLeft]:
-      let mousePos = vmath.vec2(visualizer.window.mousePos.x.float, visualizer.window.mousePos.y.float)
-      visualizer.handleMouseClick(gameState, mousePos)
+      visualizer.handleMouseDown(gameState, mousePos)
+    
+    if visualizer.window.buttonDown[MouseLeft]:
+      visualizer.handleMouseDrag(mousePos)
+    
+    if visualizer.window.buttonReleased[MouseLeft]:
+      visualizer.handleMouseUp(gameState, mousePos)
     
     # Check for speed control keys
     if visualizer.window.buttonPressed[KeyLeftBracket]:
