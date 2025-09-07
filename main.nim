@@ -111,8 +111,13 @@ proc main() =
           for playerId in gameState.players:
             let planets = gameState.getPlanetsOwnedBy(playerId)
             var totalShips = 0'i32
+            # Count ships on planets
             for planetId in planets:
               totalShips += gameState.planets[planetId].ships
+            # Count ships in fleets
+            for fleet in gameState.fleets:
+              if fleet.owner == playerId:
+                totalShips += fleet.ships
             echo "  Player ", playerId, ": ", planets.len, " planets, ", totalShips, " total ships"
           echo "  Active fleets: ", gameState.fleets.len
           echo ""

@@ -252,15 +252,22 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet, stepFraction: f
   
 
 proc drawUI*(viz: Visualizer, state: GameState) =
-  # Calculate ship counts for all players
+  # Calculate ship counts for all players (planets + fleets)
   var playerShips: seq[int32] = @[]
   var maxShips = 0'i32
   
   for playerId in state.players:
+    # Count ships on planets
     let planets = state.getPlanetsOwnedBy(playerId)
     var totalShips = 0'i32
     for planetId in planets:
       totalShips += state.planets[planetId].ships
+    
+    # Count ships in fleets
+    for fleet in state.fleets:
+      if fleet.owner == playerId:
+        totalShips += fleet.ships
+    
     playerShips.add(totalShips)
     if totalShips > maxShips:
       maxShips = totalShips
