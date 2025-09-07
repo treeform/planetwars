@@ -37,14 +37,21 @@ method makeDecision*(ai: RandomAI, state: GameState): seq[AIAction] =
   if myPlanets.len == 0:
     return
   
-  # For each planet I own, maybe send some ships somewhere
-  for planetId in myPlanets:
+  # Try to make one action per turn - check planets randomly
+  var planetIndices = myPlanets
+  # Shuffle the planet order for random selection
+  for i in countdown(planetIndices.high, 1):
+    let j = rand(i)
+    swap(planetIndices[i], planetIndices[j])
+  
+  # For each planet I own, try to send ships (but only do one action)
+  for planetId in planetIndices:
     let planet = state.planets[planetId]
     
     # Only send ships if we have enough
     if planet.ships > 20:
-      # 30% chance to send ships
-      if rand(100) < 30:
+      # 50% chance to send ships from this planet
+      if rand(100) < 50:
         # Find a target (any planet we don't own)
         var targets: seq[PlanetId] = @[]
         for i, targetPlanet in state.planets:
@@ -61,6 +68,7 @@ method makeDecision*(ai: RandomAI, state: GameState): seq[AIAction] =
             toPlanet: target,
             ships: shipsToSend
           ))
+          return  # Only one action per turn
 
 # Aggressive AI - attacks nearest enemy planets
 type
@@ -76,32 +84,35 @@ method makeDecision*(ai: AggressiveAI, state: GameState): seq[AIAction] =
   if myPlanets.len == 0:
     return
   
+  # Find the best attack opportunity among all planets (one action per turn)
+  var bestAction: AIAction
+  var bestFound = false
+  var bestScore = int32.high  # Lower distance = better score
+  
   for planetId in myPlanets:
     let planet = state.planets[planetId]
     
     # Only attack if we have enough ships
     if planet.ships > 15:
       # Find nearest enemy or neutral planet
-      var bestTarget = -1'i32
-      var bestDistance = int32.high
-      
       for i, targetPlanet in state.planets:
         if targetPlanet.owner != ai.playerId:
           let dist = distance(planet.pos, targetPlanet.pos)
-          if dist < bestDistance:
-            bestDistance = dist
-            bestTarget = i.int32
-      
-      if bestTarget != -1:
-        let targetPlanet = state.planets[bestTarget]
-        let shipsNeeded = targetPlanet.ships + 5'i32  # Send extra to ensure victory
-        
-        if planet.ships > shipsNeeded:
-          result.add(AIAction(
-            fromPlanet: planetId,
-            toPlanet: bestTarget,
-            ships: shipsNeeded
-          ))
+          let shipsNeeded = targetPlanet.ships + 5'i32  # Send extra to ensure victory
+          
+          # Check if we can attack and if it's the best option so far
+          if planet.ships > shipsNeeded and dist < bestScore:
+            bestScore = dist
+            bestAction = AIAction(
+              fromPlanet: planetId,
+              toPlanet: i.int32,
+              ships: shipsNeeded
+            )
+            bestFound = true
+  
+  # Execute the best action found
+  if bestFound:
+    result.add(bestAction)
 
 # Defensive AI - focuses on reinforcing own planets
 type
@@ -120,19 +131,19 @@ method makeDecision*(ai: DefensiveAI, state: GameState): seq[AIAction] =
   # Find strongest and weakest planets
   var strongestPlanet = -1'i32
   var weakestPlanet = -1'i32
-  var maxPop = 0'i32
-  var minPop = int32.high
+  var maxShips = 0'i32
+  var minShips = int32.high
   
   for planetId in myPlanets:
     let planet = state.planets[planetId]
-    if planet.ships > maxPop:
-      maxPop = planet.ships
+    if planet.ships > maxShips:
+      maxShips = planet.ships
       strongestPlanet = planetId
-    if planet.ships < minPop:
-      minPop = planet.ships
+    if planet.ships < minShips:
+      minShips = planet.ships
       weakestPlanet = planetId
   
-  # Send reinforcements from strongest to weakest
+  # Send reinforcements from strongest to weakest (one action per turn)
   if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
     let strongPlanet = state.planets[strongestPlanet]
     if strongPlanet.ships > 30:

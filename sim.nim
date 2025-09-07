@@ -109,7 +109,7 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
       id: i,
       pos: planetPos,
       ships: rand(100).int32,
-      growthRate: rand(10).int32,
+      growthRate: rand(5).int32,
       owner: NeutralPlayer
     )
     result.planets.add(planet)
