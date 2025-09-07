@@ -9,6 +9,7 @@ type
     windowSize*: vmath.Vec2
     scale*: float
     offset*: vmath.Vec2
+    selectedPlanet*: PlanetId  # -1 if no selection
     
 const
   PlanetColors = [
@@ -37,6 +38,7 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   # Load the base images (only once at startup)
   bxy.addImage("planet", readImage("data/Planet.png"))
   bxy.addImage("fleet", readImage("data/Fleet.png"))
+  bxy.addImage("selection", readImage("data/Selection.png"))
   
   # Load digit images
   for digit in 0..9:
@@ -47,7 +49,8 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     window: window,
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
     scale: 1f,
-    offset: vmath.vec2(100f, 100f)
+    offset: vmath.vec2(100f, 100f),
+    selectedPlanet: -1  # No selection initially
   )
 
 proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
@@ -55,6 +58,20 @@ proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
     (worldPos.x.float * viz.scale) + viz.offset.x,
     (worldPos.y.float * viz.scale) + viz.offset.y
   )
+
+proc screenToWorld*(viz: Visualizer, screenPos: vmath.Vec2): sim.Vec2 =
+  sim.Vec2(
+    x: ((screenPos.x - viz.offset.x) / viz.scale).int32,
+    y: ((screenPos.y - viz.offset.y) / viz.scale).int32
+  )
+
+proc findPlanetAt*(state: GameState, worldPos: sim.Vec2): PlanetId =
+  # Find planet within 50px of the given position
+  for i, planet in state.planets:
+    let dist = distance(planet.pos, worldPos)
+    if dist <= 50:  # 50px selection radius
+      return i.int32
+  return -1  # No planet found
 
 proc getPlayerColorIndex*(playerId: PlayerId): int =
   if playerId == NeutralPlayer:
@@ -134,6 +151,19 @@ proc drawPlanet*(viz: Visualizer, planet: Planet) =
     ),
     tint = tintColor
   )
+  
+  # Draw selection highlight if this planet is selected
+  if viz.selectedPlanet == planet.id:
+    let selectionSize = imageSize + 10f  # Slightly larger than planet
+    viz.bxy.drawImage(
+      "selection",
+      rect = rect(
+        screenPos.x - selectionSize / 2,
+        screenPos.y - selectionSize / 2,
+        selectionSize,
+        selectionSize
+      )
+    )
   
   # Draw ship count in the center of the planet (bigger numbers)
   if planet.ships > 0:
@@ -237,5 +267,37 @@ proc shouldClose*(viz: Visualizer): bool =
 proc pollEvents*(viz: Visualizer) =
   pollEvents()
   
+proc handleMouseClick*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
+  let worldPos = viz.screenToWorld(mousePos)
+  let clickedPlanet = findPlanetAt(state, worldPos)
+  
+  if clickedPlanet != -1:
+    # Clicked on a planet
+    if viz.selectedPlanet == -1:
+      # No planet selected, select this one if it belongs to a player
+      if state.planets[clickedPlanet].owner != NeutralPlayer:
+        viz.selectedPlanet = clickedPlanet
+    elif viz.selectedPlanet == clickedPlanet:
+      # Clicked on the same selected planet, deselect it
+      viz.selectedPlanet = -1
+    else:
+      # Clicked on a different planet, try to send fleet
+      let fromPlanet = viz.selectedPlanet
+      let toPlanet = clickedPlanet
+      
+      # Check if we own the source planet and it has ships
+      if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
+        let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
+        if state.sendFleet(fromPlanet, toPlanet, shipsToSend):
+          echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", toPlanet
+        else:
+          echo "Failed to send fleet"
+      
+      # Deselect after attempting to send
+      viz.selectedPlanet = -1
+  else:
+    # Clicked on empty space, deselect
+    viz.selectedPlanet = -1
+
 proc cleanup*(viz: Visualizer) =
   viz.window.close()

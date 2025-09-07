@@ -25,12 +25,11 @@ proc main() =
   # Initialize visualization
   var visualizer = initVisualizer(WindowWidth, WindowHeight)
   
-
   # Game timing and speed control
   var lastFrameTime = epochTime()
   var gameRunning = true
   var winner = NeutralPlayer
-  var simSpeed = 10f  # Simulation speed multiplier
+  var simSpeed = 1f  # Simulation speed multiplier
   var stepFraction = 0f  # Accumulated fractional steps
   
   
@@ -38,7 +37,9 @@ proc main() =
   echo "Players: ", NumPlayers
   echo "Planets: ", NumPlanets
   echo "Map size: ", MapWidth, "x", MapHeight
-  echo "Controls: [ to slow down, ] to speed up"
+  echo "Controls:"
+  echo "  [ to slow down, ] to speed up"
+  echo "  Click planet to select, click another to send fleet"
   echo ""
   
   # Main game loop
@@ -49,6 +50,11 @@ proc main() =
     
     # Handle window events and key input
     visualizer.pollEvents()
+    
+    # Handle mouse clicks
+    if visualizer.window.buttonPressed[MouseLeft]:
+      let mousePos = vmath.vec2(visualizer.window.mousePos.x.float, visualizer.window.mousePos.y.float)
+      visualizer.handleMouseClick(gameState, mousePos)
     
     # Check for speed control keys
     if visualizer.window.buttonPressed[KeyLeftBracket]:
