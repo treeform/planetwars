@@ -14,15 +14,150 @@ type
     equalize*: float32           # How often to send from strongest to weakest own planet  
     opportunity*: float32        # How often to attack very weak enemy planets
     defend*: float32             # How often to reinforce planets near strong enemies
+    neutral*: float32            # How often to prioritize capturing neutral planets
 
-proc newAI*(playerId: PlayerId, attackClosest, equalize, opportunity, defend: float32): ConfigurableAI =
+proc newAI*(playerId: PlayerId, attackClosest, equalize, opportunity, defend, neutral: float32): ConfigurableAI =
   ConfigurableAI(
     playerId: playerId,
     attackClosest: attackClosest,
     equalize: equalize,
     opportunity: opportunity,
-    defend: defend
+    defend: defend,
+    neutral: neutral
   )
+
+proc strategyAttackClosest(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  var bestAction: AIAction
+  var bestFound = false
+  var bestScore = int32.high
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > 10:
+      for i, targetPlanet in state.planets:
+        if targetPlanet.owner != ai.playerId:
+          let dist = distance(planet.pos, targetPlanet.pos)
+          if dist < bestScore:
+            bestScore = dist
+            bestAction = AIAction(
+              fromPlanet: planetId,
+              toPlanet: i.int32,
+              ships: planet.ships div 2
+            )
+            bestFound = true
+  
+  if bestFound:
+    return bestAction
+  else:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+
+proc strategyEqualize(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  if myPlanets.len <= 1:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+    
+  var strongestPlanet = -1'i32
+  var weakestPlanet = -1'i32
+  var maxShips = 0'i32
+  var minShips = int32.high
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > maxShips:
+      maxShips = planet.ships
+      strongestPlanet = planetId
+    if planet.ships < minShips:
+      minShips = planet.ships
+      weakestPlanet = planetId
+  
+  if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
+    let strongPlanet = state.planets[strongestPlanet]
+    if strongPlanet.ships > 20:
+      return AIAction(
+        fromPlanet: strongestPlanet,
+        toPlanet: weakestPlanet,
+        ships: strongPlanet.ships div 2
+      )
+  
+  return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+
+proc strategyOpportunity(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  var bestAction: AIAction
+  var bestFound = false
+  var bestRatio = 0f  # Higher ratio = better opportunity
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > 10:
+      for i, targetPlanet in state.planets:
+        if targetPlanet.owner != ai.playerId and targetPlanet.ships > 0:
+          let ratio = planet.ships.float / targetPlanet.ships.float
+          if ratio > 3f and ratio > bestRatio:  # At least 3:1 advantage
+            bestRatio = ratio
+            bestAction = AIAction(
+              fromPlanet: planetId,
+              toPlanet: i.int32,
+              ships: planet.ships div 2
+            )
+            bestFound = true
+  
+  if bestFound:
+    return bestAction
+  else:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+
+proc strategyDefend(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  var bestAction: AIAction
+  var bestFound = false
+  var bestThreat = 0f
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > 10:
+      # Find nearby enemy planets that are stronger
+      for i, enemyPlanet in state.planets:
+        if enemyPlanet.owner != ai.playerId and enemyPlanet.owner != NeutralPlayer:
+          let dist = distance(planet.pos, enemyPlanet.pos)
+          if dist < 200:  # Close enough to be a threat
+            let threat = enemyPlanet.ships.float / max(1f, dist.float)
+            if threat > bestThreat:
+              bestThreat = threat
+              bestAction = AIAction(
+                fromPlanet: planetId,
+                toPlanet: i.int32,
+                ships: planet.ships div 2
+              )
+              bestFound = true
+  
+  if bestFound:
+    return bestAction
+  else:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
+
+proc strategyNeutral(ai: ConfigurableAI, state: GameState, myPlanets: seq[PlanetId]): AIAction =
+  var bestAction: AIAction
+  var bestFound = false
+  var bestScore = int32.high  # Lower distance = better
+  
+  for planetId in myPlanets:
+    let planet = state.planets[planetId]
+    if planet.ships > 10:
+      # Find nearest neutral planet
+      for i, targetPlanet in state.planets:
+        if targetPlanet.owner == NeutralPlayer:
+          let dist = distance(planet.pos, targetPlanet.pos)
+          if dist < bestScore:
+            bestScore = dist
+            bestAction = AIAction(
+              fromPlanet: planetId,
+              toPlanet: i.int32,
+              ships: planet.ships div 2
+            )
+            bestFound = true
+  
+  if bestFound:
+    return bestAction
+  else:
+    return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
 
 proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
   result = @[]
@@ -32,7 +167,7 @@ proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
     return
   
   # Calculate total strategy weight
-  let totalWeight = ai.attackClosest + ai.equalize + ai.opportunity + ai.defend
+  let totalWeight = ai.attackClosest + ai.equalize + ai.opportunity + ai.defend + ai.neutral
   if totalWeight <= 0:
     return  # Completely passive AI
   
@@ -40,112 +175,40 @@ proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
   let choice = rand(totalWeight)
   var cumulative = 0f
   
-  # Strategy 1: Attack closest enemy planet
+  # Try each strategy based on weights
+  cumulative += ai.neutral
+  if choice <= cumulative:
+    let action = ai.strategyNeutral(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
+      return
+
   cumulative += ai.attackClosest
   if choice <= cumulative:
-    var bestAction: AIAction
-    var bestFound = false
-    var bestScore = int32.high
-    
-    for planetId in myPlanets:
-      let planet = state.planets[planetId]
-      if planet.ships > 10:
-        for i, targetPlanet in state.planets:
-          if targetPlanet.owner != ai.playerId:
-            let dist = distance(planet.pos, targetPlanet.pos)
-            if dist < bestScore:
-              bestScore = dist
-              bestAction = AIAction(
-                fromPlanet: planetId,
-                toPlanet: i.int32,
-                ships: planet.ships div 2
-              )
-              bestFound = true
-    
-    if bestFound:
-      result.add(bestAction)
+    let action = ai.strategyAttackClosest(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
       return
   
-  # Strategy 2: Equalize ships between own planets
   cumulative += ai.equalize
-  if choice <= cumulative and myPlanets.len > 1:
-    var strongestPlanet = -1'i32
-    var weakestPlanet = -1'i32
-    var maxShips = 0'i32
-    var minShips = int32.high
-    
-    for planetId in myPlanets:
-      let planet = state.planets[planetId]
-      if planet.ships > maxShips:
-        maxShips = planet.ships
-        strongestPlanet = planetId
-      if planet.ships < minShips:
-        minShips = planet.ships
-        weakestPlanet = planetId
-    
-    if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
-      let strongPlanet = state.planets[strongestPlanet]
-      if strongPlanet.ships > 20:
-        result.add(AIAction(
-          fromPlanet: strongestPlanet,
-          toPlanet: weakestPlanet,
-          ships: strongPlanet.ships div 2
-        ))
-        return
+  if choice <= cumulative:
+    let action = ai.strategyEqualize(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
+      return
   
-  # Strategy 3: Attack opportunity targets (very weak enemy planets)
   cumulative += ai.opportunity
   if choice <= cumulative:
-    var bestAction: AIAction
-    var bestFound = false
-    var bestRatio = 0f  # Higher ratio = better opportunity
-    
-    for planetId in myPlanets:
-      let planet = state.planets[planetId]
-      if planet.ships > 10:
-        for i, targetPlanet in state.planets:
-          if targetPlanet.owner != ai.playerId and targetPlanet.ships > 0:
-            let ratio = planet.ships.float / targetPlanet.ships.float
-            if ratio > 3f and ratio > bestRatio:  # At least 3:1 advantage
-              bestRatio = ratio
-              bestAction = AIAction(
-                fromPlanet: planetId,
-                toPlanet: i.int32,
-                ships: planet.ships div 2
-              )
-              bestFound = true
-    
-    if bestFound:
-      result.add(bestAction)
+    let action = ai.strategyOpportunity(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
       return
   
-  # Strategy 4: Defend against nearby strong enemies
   cumulative += ai.defend
   if choice <= cumulative:
-    var bestAction: AIAction
-    var bestFound = false
-    var bestThreat = 0f
-    
-    for planetId in myPlanets:
-      let planet = state.planets[planetId]
-      if planet.ships > 10:
-        # Find nearby enemy planets that are stronger
-        for i, enemyPlanet in state.planets:
-          if enemyPlanet.owner != ai.playerId and enemyPlanet.owner != NeutralPlayer:
-            let dist = distance(planet.pos, enemyPlanet.pos)
-            if dist < 200:  # Close enough to be a threat
-              let threat = enemyPlanet.ships.float / max(1f, dist.float)
-              if threat > bestThreat:
-                bestThreat = threat
-                bestAction = AIAction(
-                  fromPlanet: planetId,
-                  toPlanet: i.int32,
-                  ships: planet.ships div 2
-                )
-                bestFound = true
-    
-    if bestFound:
-      result.add(bestAction)
+    let action = ai.strategyDefend(state, myPlanets)
+    if action.fromPlanet != -1:
+      result.add(action)
       return
 
 # Execute AI actions in the game state
