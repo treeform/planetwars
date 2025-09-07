@@ -98,15 +98,14 @@ method makeDecision*(ai: AggressiveAI, state: GameState): seq[AIAction] =
       for i, targetPlanet in state.planets:
         if targetPlanet.owner != ai.playerId:
           let dist = distance(planet.pos, targetPlanet.pos)
-          let shipsNeeded = targetPlanet.ships + 5'i32  # Send extra to ensure victory
           
           # Check if we can attack and if it's the best option so far
-          if planet.ships > shipsNeeded and dist < bestScore:
+          if planet.ships > 10 and dist < bestScore:  # Just need enough ships to send half
             bestScore = dist
             bestAction = AIAction(
               fromPlanet: planetId,
               toPlanet: i.int32,
-              ships: shipsNeeded
+              ships: planet.ships div 2  # Send half ships
             )
             bestFound = true
   
@@ -146,8 +145,8 @@ method makeDecision*(ai: DefensiveAI, state: GameState): seq[AIAction] =
   # Send reinforcements from strongest to weakest (one action per turn)
   if strongestPlanet != -1 and weakestPlanet != -1 and strongestPlanet != weakestPlanet:
     let strongPlanet = state.planets[strongestPlanet]
-    if strongPlanet.ships > 30:
-      let shipsToSend = strongPlanet.ships div 3
+    if strongPlanet.ships > 10:  # Just need enough to send half
+      let shipsToSend = strongPlanet.ships div 2  # Send half ships
       result.add(AIAction(
         fromPlanet: strongestPlanet,
         toPlanet: weakestPlanet,
