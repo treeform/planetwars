@@ -196,7 +196,7 @@ proc strategyStrongestFirst(ai: ConfigurableAI, state: GameState, myPlanets: seq
   else:
     return AIAction(fromPlanet: -1, toPlanet: -1, ships: 0)
 
-fproc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
+proc makeDecision*(ai: ConfigurableAI, state: GameState): seq[AIAction] =
   result = @[]
   
   let myPlanets = state.getPlanetsOwnedBy(ai.playerId)
