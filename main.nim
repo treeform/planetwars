@@ -1,5 +1,6 @@
 import sim, viz, ai
-import std/[times, os]
+import std/[times, strformat]
+import windy
 
 proc main() =
 
@@ -17,8 +18,6 @@ proc main() =
     NumPlanets = 25'i32
     WindowWidth = 1200
     WindowHeight = 1200
-    TurnsPerSecond = 2.0
-    TurnDuration = 1000 div TurnsPerSecond.int  # milliseconds
   
   # Initialize game state
   var gameState = initGameState(NumPlayers, NumPlanets)
@@ -27,31 +26,51 @@ proc main() =
   var visualizer = initVisualizer(WindowWidth, WindowHeight)
   
 
-  # Game timing
-  var lastTurnTime = epochTime() * 1000.0  # Convert to milliseconds
+  # Game timing and speed control
+  var lastFrameTime = epochTime()
   var gameRunning = true
   var winner = NeutralPlayer
+  var simSpeed = 1.0'f32  # Simulation speed multiplier
+  var stepFraction = 0.0'f32  # Accumulated fractional steps
+  
   
   echo "Starting PlanetWars simulation..."
   echo "Players: ", NumPlayers
   echo "Planets: ", NumPlanets
   echo "Map size: ", MapWidth, "x", MapHeight
+  echo "Controls: [ to slow down, ] to speed up"
   echo ""
   
   # Main game loop
   while gameRunning and not visualizer.shouldClose():
-    let currentTime = epochTime() * 1000.0
+    let currentTime = epochTime()
+    let deltaTime = currentTime - lastFrameTime
+    lastFrameTime = currentTime
     
-    # Handle window events
+    # Handle window events and key input
     visualizer.pollEvents()
     
-    # Update game logic at fixed intervals
-    if currentTime - lastTurnTime >= TurnDuration.float:
+    # Check for speed control keys
+    if visualizer.window.buttonPressed[KeyLeftBracket]:
+      simSpeed = max(0.1'f32, simSpeed * 0.5f)  # Slow down
+      echo "Speed: ", simSpeed, "x"
+    if visualizer.window.buttonPressed[KeyRightBracket]:
+      simSpeed = min(10.0'f32, simSpeed * 2f)  # Speed up
+      echo "Speed: ", simSpeed, "x"
+    
+    # Accumulate simulation steps
+    stepFraction += simSpeed * deltaTime.float32
+    
+    # Process complete simulation steps
+    while stepFraction >= 1.0:
+      stepFraction -= 1.0
+      
       # Check for winner
       winner = gameState.getGameWinner()
       if winner != NeutralPlayer:
         echo "Game Over! Player ", winner, " wins!"
         gameRunning = false
+        break
       
       # Let each AI make decisions
       if gameRunning:
@@ -73,14 +92,9 @@ proc main() =
             echo "  Player ", playerId, ": ", planets.len, " planets, ", totalShips, " total ships"
           echo "  Active fleets: ", gameState.fleets.len
           echo ""
-      
-      lastTurnTime = currentTime
     
     # Render the game
     visualizer.render(gameState)
-    
-    # Small sleep to prevent 100% CPU usage
-    sleep(10)
   
   # Show final results
   if winner != NeutralPlayer:
@@ -93,12 +107,11 @@ proc main() =
       let planets = gameState.getPlanetsOwnedBy(playerId)
       echo "  Player ", playerId, ": ", planets.len, " planets"
     
-    # Wait a bit before closing
-    echo "Press any key or close window to exit..."
+    # Wait for user to close window
+    echo "Close window to exit..."
     while not visualizer.shouldClose():
       visualizer.pollEvents()
       visualizer.render(gameState)
-      sleep(100)
   
   # Cleanup
   visualizer.cleanup()
