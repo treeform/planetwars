@@ -21,6 +21,16 @@ const
     rgba(204, 204, 51, 255),   # Player 3 - yellow
     rgba(204, 51, 204, 255),   # Player 4 - magenta
     rgba(51, 204, 204, 255),   # Player 5 - cyan
+    rgba(255, 153, 51, 255),   # Player 6 - orange
+    rgba(153, 51, 255, 255),   # Player 7 - purple
+    rgba(255, 102, 178, 255),  # Player 8 - pink
+    rgba(102, 255, 102, 255),  # Player 9 - light green
+    rgba(255, 255, 102, 255),  # Player 10 - light yellow
+    rgba(102, 178, 255, 255),  # Player 11 - light blue
+    rgba(178, 102, 51, 255),   # Player 12 - brown
+    rgba(51, 178, 102, 255),   # Player 13 - teal
+    rgba(178, 51, 102, 255),   # Player 14 - maroon
+    rgba(102, 51, 178, 255),   # Player 15 - indigo
   ]
 
 # No longer need to create images - we'll use the provided ones with tinting

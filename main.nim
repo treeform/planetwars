@@ -4,18 +4,20 @@ import windy
 
 proc main() =
 
-  # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend, neutral)
+  # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend, neutral, strongestFirst)
   var ais: seq[ConfigurableAI] = @[]
-  ais.add(newAI(0, 0.5f, 0.1f, 0.2f, 0.1f, 0.1f))  # Aggressive - mostly attacks closest
-  ais.add(newAI(1, 0f, 0f, 0f, 0f, 0f))             # Passive - does nothing
-  ais.add(newAI(2, 0.2f, 0.2f, 0.2f, 0.2f, 0.2f))  # Balanced - equal strategies
-  ais.add(newAI(3, 0.1f, 0.4f, 0.1f, 0.3f, 0.1f))  # Defensive - equalizes and defends
-  ais.add(newAI(4, 0.1f, 0.1f, 0.2f, 0.1f, 0.5f))  # Expansionist - prioritizes neutrals
+  ais.add(newAI(0, 0.4f, 0.1f, 0.2f, 0.1f, 0.1f, 0.1f))  # Aggressive - mostly attacks closest
+  ais.add(newAI(1, 0f, 0f, 0f, 0f, 0f, 0f))               # Passive - does nothing
+  ais.add(newAI(2, 0.15f, 0.15f, 0.15f, 0.15f, 0.2f, 0.2f))  # Balanced - equal strategies
+  ais.add(newAI(3, 0.1f, 0.4f, 0.1f, 0.3f, 0.05f, 0.05f)) # Defensive - equalizes and defends
+  ais.add(newAI(4, 0.1f, 0.1f, 0.2f, 0.1f, 0.4f, 0.1f))  # Expansionist - prioritizes neutrals
+  ais.add(newAI(5, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.5f))  # Power Player - strongest attacks
+  ais.add(newAI(6, 0.3f, 0.05f, 0.3f, 0.05f, 0.15f, 0.15f))  # Hunter - attacks and opportunities
   
   # Game configuration
   let
     NumPlayers = ais.len.int32
-    NumPlanets = 25'i32
+    NumPlanets = 40'i32
     WindowWidth = 1200
     WindowHeight = 1200
   
