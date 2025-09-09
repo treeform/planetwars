@@ -46,7 +46,7 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   let window = newWindow(
     "PlanetWars",
     ivec2(windowWidth.int32, windowHeight.int32),
-    #style = Decorated
+    style = DecoratedResizable  # Make window resizable
   )
   window.makeContextCurrent()
   loadExtensions()
@@ -63,12 +63,21 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   for digit in 0..9:
     bxy.addImage("digit_" & $digit, readImage("data/Number" & $digit & ".png"))
 
+  # Calculate initial scale to fit 1000x1000 map
+  let mapSize = 1000f
+  let scaleX = windowWidth.float / mapSize
+  let scaleY = windowHeight.float / mapSize
+  let scale = min(scaleX, scaleY) * 0.9  # Use 90% of available space
+  let scaledMapSize = mapSize * scale
+  let offsetX = (windowWidth.float - scaledMapSize) / 2f
+  let offsetY = (windowHeight.float - scaledMapSize) / 2f
+
   result = Visualizer(
     bxy: bxy,
     window: window,
     windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
-    scale: 1f,
-    offset: vmath.vec2(100f, 100f),
+    scale: scale,
+    offset: vmath.vec2(offsetX, offsetY),
     selectedPlanets: @[],  # No selection initially
     smoothingEnabled: true,  # Smoothing on by default
     boxSelecting: false,
@@ -302,7 +311,30 @@ proc drawUI*(viz: Visualizer, state: GameState) =
 
     yPos += 20f  # Normal spacing between bars
 
-proc render*(viz: Visualizer, state: GameState, stepFraction: float = 0f) =
+proc updateWindowSize*(viz: var Visualizer) =
+  # Get the current window size
+  let newSize = viz.window.size
+  let newWidth = newSize.x.float
+  let newHeight = newSize.y.float
+
+  # Only update if size has changed
+  if newWidth != viz.windowSize.x or newHeight != viz.windowSize.y:
+    viz.windowSize = vmath.vec2(newWidth, newHeight)
+
+    # Recalculate scale to fit 1000x1000 map with aspect ratio
+    let mapSize = 1000f
+    let scaleX = newWidth / mapSize
+    let scaleY = newHeight / mapSize
+    viz.scale = min(scaleX, scaleY) * 0.9  # Use 90% of available space
+
+    # Center the map in the window
+    let scaledMapSize = mapSize * viz.scale
+    viz.offset.x = (newWidth - scaledMapSize) / 2f
+    viz.offset.y = (newHeight - scaledMapSize) / 2f
+
+proc render*(viz: var Visualizer, state: GameState, stepFraction: float = 0f) =
+  # Update window size and scale on every frame
+  viz.updateWindowSize()
 
   viz.bxy.beginFrame(ivec2(viz.windowSize.x.int32, viz.windowSize.y.int32))
 

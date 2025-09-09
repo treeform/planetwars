@@ -4,17 +4,17 @@ type
   PlayerId* = int32
   PlanetId* = int32
   FleetId* = int32
-  
+
   Vec2* = object
     x*, y*: int32
-  
+
   Planet* = object
     id*: PlanetId
     pos*: Vec2
     ships*: int32
     growthRate*: int32
     owner*: PlayerId  # -1 for neutral, 0+ for players
-    
+
   Fleet* = object
     id*: FleetId
     owner*: PlayerId
@@ -23,7 +23,7 @@ type
     targetPlanet*: PlanetId
     travelDuration*: int32  # Total turns needed to reach target
     travelProgress*: int32  # Current progress (0 to travelDuration)
-    
+
   GameState* = object
     planets*: seq[Planet]
     fleets*: seq[Fleet]
@@ -44,7 +44,7 @@ const
 proc isqrt*(n: int32): int32 =
   if n < 0: return 0
   if n < 2: return n
-  
+
   var x = n
   var y = (x + 1) div 2
   while y < x:
@@ -70,7 +70,7 @@ proc `div`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x div s, y: v.y div s)
 
 proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
   randomize()
-  
+
   result = GameState(
     planets: @[],
     fleets: @[],
@@ -79,32 +79,32 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
     mapSize: Vec2(x: MapWidth, y: MapHeight),
     nextFleetId: 0
   )
-  
+
   # Generate random planets with minimum distance constraint
   for i in 0'i32..<numPlanets:
     var planetPos: Vec2
     var attempts = 0
     const maxAttempts = 100
-    
+
     # Try to find a valid position that's not too close to existing planets
     while attempts < maxAttempts:
       planetPos = Vec2(
         x: rand(MapWidth.int).int32,
         y: rand(MapHeight.int).int32
       )
-      
+
       # Check distance to all existing planets
       var validPosition = true
       for existingPlanet in result.planets:
         if distance(planetPos, existingPlanet.pos) < MinPlanetDistance:
           validPosition = false
           break
-      
+
       if validPosition:
         break
-      
+
       attempts += 1
-    
+
     let planet = Planet(
       id: i,
       pos: planetPos,
@@ -113,30 +113,30 @@ proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
       owner: NeutralPlayer
     )
     result.planets.add(planet)
-  
+
   # Assign homeworlds to players
   for playerId in 0'i32..<numPlayers:
     if playerId < result.planets.len.int32:
       result.planets[playerId].owner = playerId
-      result.planets[playerId].ships = max(50'i32, result.planets[playerId].ships)
-      result.planets[playerId].growthRate = max(5'i32, result.planets[playerId].growthRate)
+      result.planets[playerId].ships = 100
+      result.planets[playerId].growthRate = 5
 
 proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, ships: int32): bool =
   if fromPlanet < 0 or fromPlanet >= state.planets.len.int32:
     return false
   if toPlanet < 0 or toPlanet >= state.planets.len.int32:
     return false
-    
+
   let planet = state.planets[fromPlanet]
   if planet.ships < ships:
     return false
-    
+
   # Calculate travel duration using integer distance and speed
   let startPos = state.planets[fromPlanet].pos
   let targetPos = state.planets[toPlanet].pos
   let travelDistance = distance(startPos, targetPos)
   let duration = max(1'i32, travelDistance div FleetSpeed)  # At least 1 turn
-  
+
   # Create fleet
   let fleet = Fleet(
     id: state.nextFleetId,
@@ -147,25 +147,25 @@ proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, 
     travelDuration: duration,
     travelProgress: 0  # Just started
   )
-  
+
   state.fleets.add(fleet)
   state.planets[fromPlanet].ships -= ships
   state.nextFleetId += 1
-  
+
   return true
 
 proc updateFleets*(state: var GameState) =
   var fleetsToRemove: seq[int] = @[]
-  
+
   for i, fleet in state.fleets:
     # Increment travel progress
     state.fleets[i].travelProgress += 1
-    
+
     # Check if fleet has reached its destination
     if state.fleets[i].travelProgress >= fleet.travelDuration:
       # Fleet arrives at planet
       let targetPlanet = addr state.planets[fleet.targetPlanet]
-      
+
       if targetPlanet.owner == fleet.owner:
         # Reinforcement
         targetPlanet.ships += fleet.ships
@@ -185,7 +185,7 @@ proc updateFleets*(state: var GameState) =
           targetPlanet.ships -= fleet.ships
           if targetPlanet.ships < 0:
             targetPlanet.ships = 0
-      
+
       fleetsToRemove.add(i)
 
   # Remove arrived fleets (in reverse order to maintain indices)
@@ -210,19 +210,19 @@ proc getPlanetsOwnedBy*(state: GameState, playerId: PlayerId): seq[PlanetId] =
 
 proc getGameWinner*(state: GameState): PlayerId =
   var playerPlanets: Table[PlayerId, int32]
-  
+
   for planet in state.planets:
     if planet.owner != NeutralPlayer:
       playerPlanets.mgetOrPut(planet.owner, 0) += 1
-  
+
   # Check if any player owns all planets
   for playerId, count in playerPlanets:
     if count == state.planets.len.int32:
       return playerId
-  
+
   # Check if only one player has planets
   if playerPlanets.len == 1:
     for playerId, _ in playerPlanets:
       return playerId
-      
+
   return NeutralPlayer  # No winner yet
