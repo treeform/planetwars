@@ -406,7 +406,10 @@ proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath
         for fromPlanet in viz.selectedPlanets:
           if state.planets[fromPlanet].owner != NeutralPlayer and state.planets[fromPlanet].ships > 1:
             let shipsToSend = state.planets[fromPlanet].ships div 2  # Send half
-            if state.sendFleet(fromPlanet, clickedPlanet, shipsToSend):
+            # Only send if player owner is 0
+
+            if state.planets[fromPlanet].owner == 0 and
+              state.sendFleet(fromPlanet, clickedPlanet, shipsToSend):
               echo "Sent ", shipsToSend, " ships from planet ", fromPlanet, " to planet ", clickedPlanet
 
         # Clear selection after sending
