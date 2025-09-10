@@ -6,15 +6,15 @@ type
   Visualizer* = object
     bxy*: Boxy
     window*: Window
-    windowSize*: vmath.Vec2
+    windowSize*: Vec2
     scale*: float
-    offset*: vmath.Vec2
+    offset*: Vec2
     selectedPlanets*: seq[PlanetId]  # Array of selected planets
     smoothingEnabled*: bool          # Fleet position smoothing toggle
     # Box selection state
     boxSelecting*: bool
-    boxStartPos*: vmath.Vec2
-    boxEndPos*: vmath.Vec2
+    boxStartPos*: Vec2
+    boxEndPos*: Vec2
     # Double-click detection
     lastClickTime*: float
     lastClickedPlanet*: PlanetId
@@ -75,25 +75,25 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
   result = Visualizer(
     bxy: bxy,
     window: window,
-    windowSize: vmath.vec2(windowWidth.float, windowHeight.float),
+    windowSize: vec2(windowWidth.float, windowHeight.float),
     scale: scale,
-    offset: vmath.vec2(offsetX, offsetY),
+    offset: vec2(offsetX, offsetY),
     selectedPlanets: @[],  # No selection initially
     smoothingEnabled: true,  # Smoothing on by default
     boxSelecting: false,
-    boxStartPos: vmath.vec2(0f, 0f),
-    boxEndPos: vmath.vec2(0f, 0f),
+    boxStartPos: vec2(0f, 0f),
+    boxEndPos: vec2(0f, 0f),
     lastClickTime: 0f,
     lastClickedPlanet: -1
   )
 
-proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): vmath.Vec2 =
-  vmath.vec2(
+proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): Vec2 =
+  vec2(
     (worldPos.x.float * viz.scale) + viz.offset.x,
     (worldPos.y.float * viz.scale) + viz.offset.y
   )
 
-proc screenToWorld*(viz: Visualizer, screenPos: vmath.Vec2): sim.Vec2 =
+proc screenToWorld*(viz: Visualizer, screenPos: Vec2): sim.Vec2 =
   sim.Vec2(
     x: ((screenPos.x - viz.offset.x) / viz.scale).int32,
     y: ((screenPos.y - viz.offset.y) / viz.scale).int32
@@ -170,7 +170,7 @@ proc getFleetVisualPosition*(state: GameState, fleet: Fleet, stepFraction: float
   result.x = startPos.x + (deltaX.float * progressRatio).int32
   result.y = startPos.y + (deltaY.float * progressRatio).int32
 
-proc drawNumber*(viz: Visualizer, number: int32, pos: vmath.Vec2, digitSize: float = 20f) =
+proc drawNumber*(viz: Visualizer, number: int32, pos: Vec2, digitSize: float = 20f) =
   if number < 0:
     return
 
@@ -249,7 +249,7 @@ proc drawFleet*(viz: Visualizer, state: GameState, fleet: Fleet, stepFraction: f
   # Draw fleet image centered with tinting, scaling, and rotation
   viz.bxy.drawImage(
     "fleet",
-    center = vmath.vec2(screenPos.x, screenPos.y),
+    center = vec2(screenPos.x, screenPos.y),
     angle = angle,
     tint = tintColor,
     scale = imageSize / 32f  # Assuming base fleet image is ~32px
@@ -307,7 +307,7 @@ proc drawUI*(viz: Visualizer, state: GameState) =
 
     # Draw ship count number on the bar itself
     if ships > 0:
-      viz.drawNumber(ships, vmath.vec2(25f, yPos + barHeight / 2))
+      viz.drawNumber(ships, vec2(25f, yPos + barHeight / 2))
 
     yPos += 20f  # Normal spacing between bars
 
@@ -319,7 +319,7 @@ proc updateWindowSize*(viz: var Visualizer) =
 
   # Only update if size has changed
   if newWidth != viz.windowSize.x or newHeight != viz.windowSize.y:
-    viz.windowSize = vmath.vec2(newWidth, newHeight)
+    viz.windowSize = vec2(newWidth, newHeight)
 
     # Recalculate scale to fit 1000x1000 map with aspect ratio
     let mapSize = 1000f
@@ -376,7 +376,7 @@ proc shouldClose*(viz: Visualizer): bool =
 proc pollEvents*(viz: Visualizer) =
   pollEvents()
 
-proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2, currentTime: float) =
+proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: Vec2, currentTime: float) =
   let worldPos = viz.screenToWorld(mousePos)
   let clickedPlanet = findPlanetAt(state, worldPos)
 
@@ -426,11 +426,11 @@ proc handleMouseDown*(viz: var Visualizer, state: var GameState, mousePos: vmath
     viz.lastClickTime = currentTime
     viz.lastClickedPlanet = -1
 
-proc handleMouseDrag*(viz: var Visualizer, mousePos: vmath.Vec2) =
+proc handleMouseDrag*(viz: var Visualizer, mousePos: Vec2) =
   if viz.boxSelecting:
     viz.boxEndPos = mousePos
 
-proc handleMouseUp*(viz: var Visualizer, state: var GameState, mousePos: vmath.Vec2) =
+proc handleMouseUp*(viz: var Visualizer, state: var GameState, mousePos: Vec2) =
   if viz.boxSelecting:
     # Finish box selection
     viz.boxSelecting = false

@@ -32,6 +32,9 @@ type
     mapSize*: Vec2
     nextFleetId*: FleetId
 
+    # Stats
+    moves*: int
+
 const
   NeutralPlayer* = -1'i32
   FleetSpeed* = 20'i32  # units per turn (faster movement)
@@ -68,8 +71,8 @@ proc `-`*(a, b: Vec2): Vec2 = Vec2(x: a.x - b.x, y: a.y - b.y)
 proc `*`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x * s, y: v.y * s)
 proc `div`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x div s, y: v.y div s)
 
-proc initGameState*(numPlayers: int32, numPlanets: int32): GameState =
-  randomize()
+proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState =
+  randomize(seed)
 
   result = GameState(
     planets: @[],
@@ -130,6 +133,8 @@ proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, 
   let planet = state.planets[fromPlanet]
   if planet.ships < ships:
     return false
+
+  inc state.moves
 
   # Calculate travel duration using integer distance and speed
   let startPos = state.planets[fromPlanet].pos
