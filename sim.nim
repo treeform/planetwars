@@ -237,3 +237,44 @@ proc getGameWinner*(state: GameState): PlayerId =
       return playerId
 
   return NeutralPlayer  # No winner yet
+
+proc encodeObservation*(state: GameState): seq[float32] =
+  ## Encode the game state into a sequence of floats
+  ## for the neural network to use.
+  result = newSeq[float32](
+    state.planets.len * 5 +
+    state.fleets.len * 6
+  )
+  var i = 0
+  for planet in state.planets:
+    result[i + 0] = planet.owner.float32
+    result[i + 1] = planet.pos.x.float32
+    result[i + 2] = planet.pos.y.float32
+    result[i + 3] = planet.ships.float32
+    result[i + 4] = planet.growthRate.float32
+    i += 5
+  for fleet in state.fleets:
+    if fleet.ships > 0:
+      result[i + 0] = fleet.owner.float32
+      result[i + 1] = fleet.startPlanet.float32
+      result[i + 2] = fleet.targetPlanet.float32
+      result[i + 3] = fleet.ships.float32
+      result[i + 4] = fleet.travelProgress.float32
+      result[i + 5] = fleet.travelDuration.float32
+    else:
+      result[i + 0] = -1.0f
+      result[i + 1] = 0.0f
+      result[i + 2] = 0.0f
+      result[i + 3] = 0.0f
+      result[i + 4] = 0.0f
+      result[i + 5] = 0.0f
+    i += 6
+
+proc decodeAction*(state: GameState, action: seq[float32]) =
+  # Decode the action into actions for each player
+  for i in 0 ..< state.players.len:
+    let sourcePlanet = action[i * 3 + 0].int32
+    let targetPlanet = action[i * 3 + 1].int32
+    let ships = action[i * 3 + 2].int32
+    if ships > 0:
+      state.sendFleet(sourcePlanet, targetPlanet, ships)
