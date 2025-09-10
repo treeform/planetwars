@@ -1,6 +1,8 @@
 import benchy, sim, ai
 
-var numMoves = 0
+var
+  numRests = 0
+  numMoves = 0
 
 timeIt "full sim":
     # Create AI players with strategy parameters: (attackClosest, equalize, opportunity, defend, neutral, strongestFirst, attackLeader)
@@ -20,13 +22,22 @@ timeIt "full sim":
     numPlanets = 40'i32
 
   # Initialize game state
-  var state = initGameState(
+  var gameState = initGameState(
     numPlayers,
-    numPlanets,
+  numPlanets,
     seed=42
   )
-  for i in 0 ..< 1000:
-    state.updateGame()
-    numMoves += state.moves
+  for i in 0 ..< 1_000_000:
+    for ai in ais:
+      let actions = ai.makeDecision(gameState)
+      gameState.executeAIActions(actions)
+    gameState.updateGame()
+
+    let winner = gameState.getGameWinner()
+    if winner != NeutralPlayer:
+      gameState.reset()
+      inc numRests
+    numMoves += gameState.moves
 
 echo numMoves
+echo numRests

@@ -25,6 +25,7 @@ type
     travelProgress*: int32  # Current progress (0 to travelDuration)
 
   GameState* = object
+    seed*: int
     planets*: seq[Planet]
     fleets*: seq[Fleet]
     players*: seq[PlayerId]
@@ -71,20 +72,10 @@ proc `-`*(a, b: Vec2): Vec2 = Vec2(x: a.x - b.x, y: a.y - b.y)
 proc `*`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x * s, y: v.y * s)
 proc `div`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x div s, y: v.y div s)
 
-proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState =
-  randomize(seed)
-
-  result = GameState(
-    planets: @[],
-    fleets: @[],
-    players: toSeq(0'i32..<numPlayers),
-    turn: 0,
-    mapSize: Vec2(x: MapWidth, y: MapHeight),
-    nextFleetId: 0
-  )
+proc reset*(state: var GameState) =
 
   # Generate random planets with minimum distance constraint
-  for i in 0'i32..<numPlanets:
+  for i in 0 ..< state.planets.len:
     var planetPos: Vec2
     var attempts = 0
     const maxAttempts = 100
@@ -98,7 +89,7 @@ proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState 
 
       # Check distance to all existing planets
       var validPosition = true
-      for existingPlanet in result.planets:
+      for existingPlanet in state.planets:
         if distance(planetPos, existingPlanet.pos) < MinPlanetDistance:
           validPosition = false
           break
@@ -109,20 +100,35 @@ proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState 
       attempts += 1
 
     let planet = Planet(
-      id: i,
+      id: i.int32,
       pos: planetPos,
       ships: rand(100).int32,
       growthRate: rand(5).int32,
       owner: NeutralPlayer
     )
-    result.planets.add(planet)
+    state.planets[i] = planet
 
   # Assign homeworlds to players
-  for playerId in 0'i32..<numPlayers:
-    if playerId < result.planets.len.int32:
-      result.planets[playerId].owner = playerId
-      result.planets[playerId].ships = 100
-      result.planets[playerId].growthRate = 5
+  for playerId in 0 ..< state.players.len:
+    if playerId < state.planets.len:
+      state.planets[playerId].owner = playerId.int32
+      state.planets[playerId].ships = 100
+      state.planets[playerId].growthRate = 5
+
+proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState =
+  randomize(seed)
+
+  result = GameState(
+    seed: seed,
+    planets: newSeq[Planet](numPlanets),
+    fleets: newSeqOfCap[Fleet](numPlanets*4),
+    players: newSeq[PlayerId](numPlayers),
+    turn: 0,
+    mapSize: Vec2(x: MapWidth, y: MapHeight),
+    nextFleetId: 0
+  )
+
+  result.reset()
 
 proc sendFleet*(state: var GameState, fromPlanet: PlanetId, toPlanet: PlanetId, ships: int32): bool =
   if fromPlanet < 0 or fromPlanet >= state.planets.len.int32:
