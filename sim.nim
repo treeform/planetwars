@@ -5,12 +5,12 @@ type
   PlanetId* = int32
   FleetId* = int32
 
-  Vec2* = object
+  Pos2* = object
     x*, y*: int32
 
   Planet* = object
     id*: PlanetId
-    pos*: Vec2
+    pos*: Pos2
     ships*: int32
     growthRate*: int32
     owner*: PlayerId  # -1 for neutral, 0+ for players
@@ -30,7 +30,7 @@ type
     fleets*: seq[Fleet]
     players*: seq[PlayerId]
     turn*: int32
-    mapSize*: Vec2
+    mapSize*: Pos2
     nextFleetId*: FleetId
 
     # Stats
@@ -56,33 +56,39 @@ proc isqrt*(n: int32): int32 =
     y = (x + n div x) div 2
   return x
 
-proc distance*(a, b: Vec2): int32 =
+proc distance*(a, b: Pos2): int32 =
   let dx = a.x - b.x
   let dy = a.y - b.y
   isqrt(dx * dx + dy * dy)
 
-proc normalize*(v: Vec2): Vec2 =
+proc normalize*(v: Pos2): Pos2 =
   let len = isqrt(v.x * v.x + v.y * v.y)
   if len == 0:
-    return Vec2(x: 0, y: 0)
-  Vec2(x: (v.x * ScaleFactor) div len, y: (v.y * ScaleFactor) div len)
+    return Pos2(x: 0, y: 0)
+  Pos2(x: (v.x * ScaleFactor) div len, y: (v.y * ScaleFactor) div len)
 
-proc `+`*(a, b: Vec2): Vec2 = Vec2(x: a.x + b.x, y: a.y + b.y)
-proc `-`*(a, b: Vec2): Vec2 = Vec2(x: a.x - b.x, y: a.y - b.y)
-proc `*`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x * s, y: v.y * s)
-proc `div`*(v: Vec2, s: int32): Vec2 = Vec2(x: v.x div s, y: v.y div s)
+proc `+`*(a, b: Pos2): Pos2 = Pos2(x: a.x + b.x, y: a.y + b.y)
+proc `-`*(a, b: Pos2): Pos2 = Pos2(x: a.x - b.x, y: a.y - b.y)
+proc `*`*(v: Pos2, s: int32): Pos2 = Pos2(x: v.x * s, y: v.y * s)
+proc `div`*(v: Pos2, s: int32): Pos2 = Pos2(x: v.x div s, y: v.y div s)
 
 proc reset*(state: var GameState) =
 
+  state.turn = 0
+  state.fleets.setLen(0)
+  state.moves = 0
+
+  randomize(state.seed)
+
   # Generate random planets with minimum distance constraint
   for i in 0 ..< state.planets.len:
-    var planetPos: Vec2
+    var planetPos: Pos2
     var attempts = 0
     const maxAttempts = 100
 
     # Try to find a valid position that's not too close to existing planets
     while attempts < maxAttempts:
-      planetPos = Vec2(
+      planetPos = Pos2(
         x: rand(MapWidth.int).int32,
         y: rand(MapHeight.int).int32
       )
@@ -124,7 +130,7 @@ proc initGameState*(numPlayers: int32, numPlanets: int32, seed = 42): GameState 
     fleets: newSeqOfCap[Fleet](numPlanets*4),
     players: newSeq[PlayerId](numPlayers),
     turn: 0,
-    mapSize: Vec2(x: MapWidth, y: MapHeight),
+    mapSize: Pos2(x: MapWidth, y: MapHeight),
     nextFleetId: 0
   )
 
@@ -270,11 +276,17 @@ proc encodeObservation*(state: GameState): seq[float32] =
       result[i + 5] = 0.0f
     i += 6
 
-proc decodeAction*(state: GameState, action: seq[float32]) =
+proc decodeAction*(state: var GameState, action: seq[float32]) =
   # Decode the action into actions for each player
   for i in 0 ..< state.players.len:
     let sourcePlanet = action[i * 3 + 0].int32
     let targetPlanet = action[i * 3 + 1].int32
     let ships = action[i * 3 + 2].int32
     if ships > 0:
-      state.sendFleet(sourcePlanet, targetPlanet, ships)
+      discard state.sendFleet(sourcePlanet, targetPlanet, ships)
+
+proc step*(state: var GameState, action: seq[float32]): seq[float32] =
+  state.decodeAction(action)
+  state.updateGame()
+  let o = state.encodeObservation()
+  return o

@@ -87,19 +87,19 @@ proc initVisualizer*(windowWidth, windowHeight: int): Visualizer =
     lastClickedPlanet: -1
   )
 
-proc worldToScreen*(viz: Visualizer, worldPos: sim.Vec2): Vec2 =
+proc worldToScreen*(viz: Visualizer, worldPos: sim.Pos2): Vec2 =
   vec2(
     (worldPos.x.float * viz.scale) + viz.offset.x,
     (worldPos.y.float * viz.scale) + viz.offset.y
   )
 
-proc screenToWorld*(viz: Visualizer, screenPos: Vec2): sim.Vec2 =
-  sim.Vec2(
+proc screenToWorld*(viz: Visualizer, screenPos: Vec2): sim.Pos2 =
+  sim.Pos2(
     x: ((screenPos.x - viz.offset.x) / viz.scale).int32,
     y: ((screenPos.y - viz.offset.y) / viz.scale).int32
   )
 
-proc findPlanetAt*(state: GameState, worldPos: sim.Vec2): PlanetId =
+proc findPlanetAt*(state: GameState, worldPos: sim.Pos2): PlanetId =
   # Find planet within 50px of the given position
   for i, planet in state.planets:
     let dist = distance(planet.pos, worldPos)
@@ -107,7 +107,7 @@ proc findPlanetAt*(state: GameState, worldPos: sim.Vec2): PlanetId =
       return i.int32
   return -1  # No planet found
 
-proc findPlanetsInBox*(state: GameState, topLeft, bottomRight: sim.Vec2): seq[PlanetId] =
+proc findPlanetsInBox*(state: GameState, topLeft, bottomRight: sim.Pos2): seq[PlanetId] =
   # Find all planets within the selection box
   result = @[]
   let minX = min(topLeft.x, bottomRight.x)
@@ -145,7 +145,7 @@ proc getFleetSize*(): float =
   # All fleets are the same size now, and smaller
   return 8f
 
-proc getFleetVisualPosition*(state: GameState, fleet: Fleet, stepFraction: float = 0f, smoothing: bool = false): sim.Vec2 =
+proc getFleetVisualPosition*(state: GameState, fleet: Fleet, stepFraction: float = 0f, smoothing: bool = false): sim.Pos2 =
   # Calculate the visual position of a fleet based on its travel progress
   let startPos = state.planets[fleet.startPlanet].pos
   let targetPos = state.planets[fleet.targetPlanet].pos
@@ -265,29 +265,28 @@ proc drawUI*(viz: Visualizer, state: GameState) =
   var playerShips: seq[int32] = @[]
   var maxShips = 0'i32
 
-  for playerId in state.players:
+  for i, player in state.players:
     # Count ships on planets
-    let planets = state.getPlanetsOwnedBy(playerId)
     var totalShips = 0'i32
-    for planetId in planets:
-      totalShips += state.planets[planetId].ships
+    for planet in state.planets:
+      if planet.owner == i:
+        totalShips += planet.ships
 
-    # Count ships in fleets
     for fleet in state.fleets:
-      if fleet.owner == playerId:
+      if fleet.owner == i:
         totalShips += fleet.ships
-
-    playerShips.add(totalShips)
     if totalShips > maxShips:
       maxShips = totalShips
+
+    playerShips.add(totalShips)
 
   # Draw player status bars (scaled to 500px max)
   var yPos = 5f
   let barHeight = 15f
   let maxBarWidth = 500f
 
-  for i, playerId in state.players:
-    let colorIndex = getPlayerColorIndex(playerId)
+  for i, player in state.players:
+    let colorIndex = getPlayerColorIndex(i.int32)
     let ships = playerShips[i]
 
     # Scale bar width based on ship count (max 500px)
